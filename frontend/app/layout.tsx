@@ -1,6 +1,6 @@
+import type React from "react";
 import type { Metadata } from "next";
 import "./globals.css";
-import { MainLayout } from "@/components/layout/MainLayout";
 
 export const metadata: Metadata = {
     title: "Nexus - AI Event Production Platform",
@@ -14,8 +14,8 @@ export default function RootLayout({
 }>): React.ReactElement {
     return (
         <html lang="en">
-            <body>
-                <MainLayout>{children}</MainLayout>
+            <body className="bg-background text-primary">
+                {children}
             </body>
         </html>
     );
