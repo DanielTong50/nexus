@@ -30,6 +30,7 @@ async def process_chat_stream(request: ChatRequest):
 
     This endpoint streams agent updates in real-time as they execute,
     providing immediate feedback to the user.
+    
     """
     return create_event_stream(request)
 

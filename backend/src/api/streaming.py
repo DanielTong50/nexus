@@ -20,6 +20,7 @@ async def generate_events(request: ChatRequest) -> AsyncGenerator[str, None]:
     - error: If something goes wrong
     """
     # TODO: Implement actual graph streaming
+    
 
     # Example event structure
     yield json.dumps(
