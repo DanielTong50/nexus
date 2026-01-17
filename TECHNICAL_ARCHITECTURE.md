@@ -221,20 +221,38 @@ nexus/
 │       ├── test_agents/
 │       └── test_tools/
 ├── frontend/
+│   ├── app/                        # Next.js App Router (routes/pages)
+│   │   ├── layout.tsx              # Root layout wrapper
+│   │   ├── page.tsx                # Home page (/)
+│   │   ├── globals.css             # Global styles + Tailwind
+│   │   ├── partnerships/
+│   │   │   └── page.tsx            # /partnerships route
+│   │   ├── marketing/
+│   │   │   └── page.tsx            # /marketing route
+│   │   ├── finance/
+│   │   │   └── page.tsx            # /finance route
+│   │   └── developers/
+│   │       └── page.tsx            # /developers route
 │   ├── components/
 │   │   ├── layout/
 │   │   │   ├── Navbar.tsx
-│   │   │   └── ChatPanel.tsx
+│   │   │   ├── ChatPanel.tsx
+│   │   │   └── MainLayout.tsx      # Main layout with chat toggle
 │   │   ├── agents/
-│   │   │   └── AgentFeed.tsx   # Cursor-style feed
+│   │   │   └── AgentFeed.tsx       # Cursor-style feed
 │   │   └── views/
 │   │       ├── EventsView.tsx
 │   │       ├── PartnershipsView.tsx
 │   │       ├── MarketingView.tsx
 │   │       ├── FinanceView.tsx
 │   │       └── DevelopersView.tsx
-│   └── lib/
-│       └── config.ts           # colors, API urls
+│   ├── lib/
+│   │   ├── config.ts               # colors, API urls
+│   │   └── utils.ts                # Tailwind utilities
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.ts
+│   └── next.config.ts
 └── README.md
 ```
 
