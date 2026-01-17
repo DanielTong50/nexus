@@ -4,6 +4,7 @@ import logging
 from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from pymongo.server_api import ServerApi
 
 from config.settings import settings
 
@@ -21,16 +22,17 @@ db = Database()
 
 
 async def connect_to_mongo() -> None:
-    """Establish connection to MongoDB."""
-    logger.info("Connecting to MongoDB...")
+    """Establish connection to MongoDB Atlas."""
+    logger.info("Connecting to MongoDB Atlas...")
     try:
         db.client = AsyncIOMotorClient(
             settings.mongodb_uri,
+            server_api=ServerApi("1"),
             serverSelectionTimeoutMS=5000,
         )
         db.db = db.client[settings.mongodb_database]
 
-        # Verify connection
+        # Verify connection with ping
         await db.client.admin.command("ping")
         logger.info(f"Connected to MongoDB database: {settings.mongodb_database}")
     except Exception as e:
