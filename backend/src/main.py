@@ -44,6 +44,13 @@ async def health_check() -> dict:
     """Health check endpoint."""
     return {"status": "healthy", "app": settings.app_name}
 
+
+@app.get("/")
+async def root():
+    """Redirect to API documentation."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/docs")
+
 #direct execution
 if __name__ == "__main__":
     import uvicorn
