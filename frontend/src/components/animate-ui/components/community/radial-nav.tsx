@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { MousePointer2, type LucideIcon } from 'lucide-react';
-import { motion, type Variants, type Transition } from 'motion/react';
+import { motion, type Variants, type Transition } from 'framer-motion';
 
 type RadialNavProps = {
     size?: number;
