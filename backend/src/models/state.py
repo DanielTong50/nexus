@@ -18,6 +18,7 @@ class AgentResult(BaseModel):
     message: str = Field(description="Human-readable result message")
     data: Optional[dict] = Field(default=None, description="Structured result data")
     tool_calls: list[dict] = Field(default_factory=list, description="Tools invoked by agent")
+    pending_actions: list[dict] = Field(default_factory=list, description="Actions pending approval")
 
 
 class GraphState(BaseModel):

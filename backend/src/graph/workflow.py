@@ -5,6 +5,8 @@ This module defines the workflow graph that:
 2. Routes to appropriate agents
 3. Executes agents in parallel using asyncio.gather
 4. Aggregates results
+
+Agents use LLM to intelligently select and execute tools.
 """
 
 import asyncio
@@ -34,83 +36,192 @@ def register_agent(name: str):
 
 @register_agent("partnerships")
 async def run_partnerships_agent(state: GraphState) -> dict:
-    """Execute the partnerships agent."""
+    """Execute the partnerships agent with real LLM."""
+    from src.agents.partnerships import partnerships_agent
+
     start_time = time.time()
-    # Simulate some async work
-    await asyncio.sleep(0.01)
-    
-    result = AgentResult(
-        agent_name="partnerships",
-        status="success",
-        message="Partnerships agent executed",
-        data={"execution_time": time.time() - start_time},
-    )
-    logger.info(f"Partnerships agent completed in {time.time() - start_time:.3f}s")
-    return {"agent_results": [result], "completed_agents": ["partnerships"]}
+    logger.info("Partnerships agent starting...")
+
+    try:
+        result = await partnerships_agent.execute(
+            prompt=state.user_message,
+            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        )
+
+        agent_result = AgentResult(
+            agent_name="partnerships",
+            status="success" if result.success else "error",
+            message=result.message,
+            data={"execution_time": time.time() - start_time},
+            tool_calls=result.tool_calls,
+            pending_actions=result.pending_actions if hasattr(result, 'pending_actions') else [],
+        )
+
+        logger.info(f"Partnerships agent completed in {time.time() - start_time:.3f}s")
+        return {"agent_results": [agent_result], "completed_agents": ["partnerships"]}
+
+    except Exception as e:
+        logger.error(f"Partnerships agent failed: {e}")
+        return {
+            "agent_results": [AgentResult(
+                agent_name="partnerships",
+                status="error",
+                message=str(e),
+            )],
+            "completed_agents": ["partnerships"]
+        }
 
 
 @register_agent("marketing")
 async def run_marketing_agent(state: GraphState) -> dict:
     """Execute the marketing agent."""
+    from src.agents.marketing import marketing_agent
+
     start_time = time.time()
-    await asyncio.sleep(0.01)
-    
-    result = AgentResult(
-        agent_name="marketing",
-        status="success",
-        message="Marketing agent executed",
-        data={"execution_time": time.time() - start_time},
-    )
-    logger.info(f"Marketing agent completed in {time.time() - start_time:.3f}s")
-    return {"agent_results": [result], "completed_agents": ["marketing"]}
+    logger.info("Marketing agent starting...")
+
+    try:
+        result = await marketing_agent.execute(
+            prompt=state.user_message,
+            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        )
+
+        agent_result = AgentResult(
+            agent_name="marketing",
+            status="success" if result.success else "error",
+            message=result.message,
+            data={"execution_time": time.time() - start_time},
+            tool_calls=result.tool_calls,
+            pending_actions=result.pending_actions if hasattr(result, 'pending_actions') else [],
+        )
+
+        logger.info(f"Marketing agent completed in {time.time() - start_time:.3f}s")
+        return {"agent_results": [agent_result], "completed_agents": ["marketing"]}
+
+    except Exception as e:
+        logger.error(f"Marketing agent failed: {e}")
+        return {
+            "agent_results": [AgentResult(
+                agent_name="marketing",
+                status="error",
+                message=str(e),
+            )],
+            "completed_agents": ["marketing"]
+        }
 
 
 @register_agent("finance")
 async def run_finance_agent(state: GraphState) -> dict:
     """Execute the finance agent."""
+    from src.agents.finance import finance_agent
+
     start_time = time.time()
-    await asyncio.sleep(0.01)
-    
-    result = AgentResult(
-        agent_name="finance",
-        status="success",
-        message="Finance agent executed",
-        data={"execution_time": time.time() - start_time},
-    )
-    logger.info(f"Finance agent completed in {time.time() - start_time:.3f}s")
-    return {"agent_results": [result], "completed_agents": ["finance"]}
+    logger.info("Finance agent starting...")
+
+    try:
+        result = await finance_agent.execute(
+            prompt=state.user_message,
+            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        )
+
+        agent_result = AgentResult(
+            agent_name="finance",
+            status="success" if result.success else "error",
+            message=result.message,
+            data={"execution_time": time.time() - start_time},
+            tool_calls=result.tool_calls,
+            pending_actions=result.pending_actions if hasattr(result, 'pending_actions') else [],
+        )
+
+        logger.info(f"Finance agent completed in {time.time() - start_time:.3f}s")
+        return {"agent_results": [agent_result], "completed_agents": ["finance"]}
+
+    except Exception as e:
+        logger.error(f"Finance agent failed: {e}")
+        return {
+            "agent_results": [AgentResult(
+                agent_name="finance",
+                status="error",
+                message=str(e),
+            )],
+            "completed_agents": ["finance"]
+        }
 
 
 @register_agent("events")
 async def run_events_agent(state: GraphState) -> dict:
     """Execute the events agent."""
+    from src.agents.events import events_agent
+
     start_time = time.time()
-    await asyncio.sleep(0.01)
-    
-    result = AgentResult(
-        agent_name="events",
-        status="success",
-        message="Events agent executed",
-        data={"execution_time": time.time() - start_time},
-    )
-    logger.info(f"Events agent completed in {time.time() - start_time:.3f}s")
-    return {"agent_results": [result], "completed_agents": ["events"]}
+    logger.info("Events agent starting...")
+
+    try:
+        result = await events_agent.execute(
+            prompt=state.user_message,
+            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        )
+
+        agent_result = AgentResult(
+            agent_name="events",
+            status="success" if result.success else "error",
+            message=result.message,
+            data={"execution_time": time.time() - start_time},
+            tool_calls=result.tool_calls,
+            pending_actions=result.pending_actions if hasattr(result, 'pending_actions') else [],
+        )
+
+        logger.info(f"Events agent completed in {time.time() - start_time:.3f}s")
+        return {"agent_results": [agent_result], "completed_agents": ["events"]}
+
+    except Exception as e:
+        logger.error(f"Events agent failed: {e}")
+        return {
+            "agent_results": [AgentResult(
+                agent_name="events",
+                status="error",
+                message=str(e),
+            )],
+            "completed_agents": ["events"]
+        }
 
 
 @register_agent("developers")
 async def run_developers_agent(state: GraphState) -> dict:
     """Execute the developers agent."""
+    from src.agents.developers import developers_agent
+
     start_time = time.time()
-    await asyncio.sleep(0.01)
-    
-    result = AgentResult(
-        agent_name="developers",
-        status="success",
-        message="Developers agent executed",
-        data={"execution_time": time.time() - start_time},
-    )
-    logger.info(f"Developers agent completed in {time.time() - start_time:.3f}s")
-    return {"agent_results": [result], "completed_agents": ["developers"]}
+    logger.info("Developers agent starting...")
+
+    try:
+        result = await developers_agent.execute(
+            prompt=state.user_message,
+            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        )
+
+        agent_result = AgentResult(
+            agent_name="developers",
+            status="success" if result.success else "error",
+            message=result.message,
+            data={"execution_time": time.time() - start_time},
+            tool_calls=result.tool_calls,
+            pending_actions=result.pending_actions if hasattr(result, 'pending_actions') else [],
+        )
+
+        logger.info(f"Developers agent completed in {time.time() - start_time:.3f}s")
+        return {"agent_results": [agent_result], "completed_agents": ["developers"]}
+
+    except Exception as e:
+        logger.error(f"Developers agent failed: {e}")
+        return {
+            "agent_results": [AgentResult(
+                agent_name="developers",
+                status="error",
+                message=str(e),
+            )],
+            "completed_agents": ["developers"]
+        }
 
 
 async def run_agents_parallel(state: GraphState) -> dict:
@@ -157,7 +268,6 @@ async def run_agents_parallel(state: GraphState) -> dict:
                 "agent": target_agents[i],
                 "error": str(result),
             })
-            # Create error result for failed agent
             all_agent_results.append(AgentResult(
                 agent_name=target_agents[i],
                 status="error",
@@ -182,14 +292,7 @@ async def run_agents_parallel(state: GraphState) -> dict:
 
 
 def should_run_parallel(state: GraphState) -> Literal["parallel_agents", "aggregate"]:
-    """Determine if we should run agents in parallel or skip to aggregation.
-
-    Args:
-        state: Current graph state
-
-    Returns:
-        "parallel_agents" if there are agents to run, "aggregate" otherwise
-    """
+    """Determine if we should run agents in parallel or skip to aggregation."""
     if state.target_agents:
         return "parallel_agents"
     return "aggregate"
@@ -202,14 +305,7 @@ async def handle_error(state: GraphState) -> dict:
 
 
 async def aggregate_results(state: GraphState) -> dict:
-    """Aggregate results from all executed agents.
-
-    Args:
-        state: Current graph state with agent_results populated
-
-    Returns:
-        Empty dict (results already in state)
-    """
+    """Aggregate results from all executed agents."""
     agent_count = len(state.agent_results)
     completed_count = len(state.completed_agents)
     logger.info(f"Aggregation complete: {agent_count} results from {completed_count} agents")
@@ -217,28 +313,16 @@ async def aggregate_results(state: GraphState) -> dict:
 
 
 def create_workflow() -> StateGraph:
-    """Create and compile the LangGraph workflow with parallel execution.
-
-    The workflow structure:
-    1. classify: Analyze request and determine target agents
-    2. parallel_agents: Execute all target agents concurrently
-    3. aggregate: Merge and finalize results
-
-    Returns:
-        Compiled StateGraph ready for execution.
-    """
+    """Create and compile the LangGraph workflow with parallel execution."""
     workflow = StateGraph(GraphState)
 
-    # Add nodes
     workflow.add_node("classify", classify_request)
     workflow.add_node("parallel_agents", run_agents_parallel)
     workflow.add_node("error_handler", handle_error)
     workflow.add_node("aggregate", aggregate_results)
 
-    # Set entry point
     workflow.set_entry_point("classify")
 
-    # Route from classifier to parallel execution or aggregate
     workflow.add_conditional_edges(
         "classify",
         should_run_parallel,
@@ -248,79 +332,19 @@ def create_workflow() -> StateGraph:
         },
     )
 
-    # After parallel execution, go to aggregation
     workflow.add_edge("parallel_agents", "aggregate")
-
-    # Error handler goes to end
-    workflow.add_edge("error_handler", END)
-
-    # Aggregation is the final step
-    workflow.add_edge("aggregate", END)
-
-    return workflow.compile()
-
-
-def create_sequential_workflow() -> StateGraph:
-    """Create workflow with sequential agent execution (for comparison/fallback).
-
-    Returns:
-        Compiled StateGraph with sequential execution.
-    """
-    workflow = StateGraph(GraphState)
-
-    # Add nodes
-    workflow.add_node("classify", classify_request)
-    workflow.add_node("partnerships", run_partnerships_agent)
-    workflow.add_node("marketing", run_marketing_agent)
-    workflow.add_node("finance", run_finance_agent)
-    workflow.add_node("events", run_events_agent)
-    workflow.add_node("developers", run_developers_agent)
-    workflow.add_node("error_handler", handle_error)
-    workflow.add_node("aggregate", aggregate_results)
-
-    # Set entry point
-    workflow.set_entry_point("classify")
-
-    # Add conditional edges from classifier (sequential - first agent only)
-    workflow.add_conditional_edges(
-        "classify",
-        route_to_agents,
-        {
-            "partnerships": "partnerships",
-            "marketing": "marketing",
-            "finance": "finance",
-            "events": "events",
-            "developers": "developers",
-            "aggregate": "aggregate",
-        },
-    )
-
-    # Connect agent nodes to aggregation
-    for agent in ["partnerships", "marketing", "finance", "events", "developers"]:
-        workflow.add_edge(agent, "aggregate")
-
     workflow.add_edge("error_handler", END)
     workflow.add_edge("aggregate", END)
 
     return workflow.compile()
 
 
-# Create the compiled workflow instances
-graph = create_workflow()  # Default: parallel execution
-sequential_graph = create_sequential_workflow()  # For comparison
+# Create the compiled workflow instance
+graph = create_workflow()
 
 
-# Convenience function for running the parallel workflow
 async def run_workflow(user_message: str, request_id: str = "default") -> GraphState:
-    """Run the parallel workflow with a user message.
-
-    Args:
-        user_message: The user's input message
-        request_id: Unique identifier for this request
-
-    Returns:
-        Final GraphState with all results
-    """
+    """Run the parallel workflow with a user message."""
     initial_state = GraphState(
         request_id=request_id,
         user_message=user_message,

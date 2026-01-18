@@ -16,12 +16,23 @@ from sse_starlette.sse import EventSourceResponse
 from src.graph.workflow import run_agents_parallel, AGENT_RUNNERS
 from src.graph.classifier import classify_request
 from src.models.requests import ChatRequest, StreamEvent, PendingApproval
+from src.models.approval import ApprovalDocument
 from src.models.state import GraphState, AgentResult
+from src.services.database import db_service
+from src.repositories.approval_repository import ApprovalRepository
+from src.repositories.chat_history_repository import ChatHistoryRepository
 
 logger = logging.getLogger(__name__)
 
-# In-memory store for pending approvals (replace with Redis/DB in production)
-PENDING_APPROVALS: dict[str, PendingApproval] = {}
+
+def _get_approval_repo() -> ApprovalRepository:
+    """Get the approval repository instance."""
+    return ApprovalRepository(db_service.db)
+
+
+def _get_history_repo() -> ChatHistoryRepository:
+    """Get the chat history repository instance."""
+    return ChatHistoryRepository(db_service.db)
 
 # Actions that require approval
 ACTIONS_REQUIRING_APPROVAL = [
@@ -216,27 +227,30 @@ async def generate_events(request: ChatRequest) -> AsyncGenerator[str, None]:
                     pass
 
         # Step 3: Check for actions requiring approval
+        approval_repo = _get_approval_repo()
         for result in all_results:
             if result.get("data") and result["data"].get("action_type") in ACTIONS_REQUIRING_APPROVAL:
                 approval_id = str(uuid.uuid4())
-                approval = PendingApproval(
+                approval_doc = ApprovalDocument.create_with_expiry(
                     approval_id=approval_id,
                     request_id=request_id,
                     agent_name=result.get("agent_name", "unknown"),
                     action_type=result["data"]["action_type"],
                     action_description=result["data"].get("description", "Action requires approval"),
                     action_data=result["data"],
+                    expiry_hours=24,
                 )
-                PENDING_APPROVALS[approval_id] = approval
+                # Save to database
+                await approval_repo.create(approval_doc)
                 pending_approval_ids.append(approval_id)
 
                 yield create_stream_event(
                     "approval_required",
                     {
                         "approval_id": approval_id,
-                        "agent_name": approval.agent_name,
-                        "action_type": approval.action_type,
-                        "description": approval.action_description,
+                        "agent_name": approval_doc.agent_name,
+                        "action_type": approval_doc.action_type,
+                        "description": approval_doc.action_description,
                     },
                 )
 
@@ -276,6 +290,7 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
         SSE event strings
     """
     request_id = request.request_id or str(uuid.uuid4())
+    history_repo = _get_history_repo()
 
     state = GraphState(
         request_id=request_id,
@@ -284,6 +299,14 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
     )
 
     try:
+        # Log request start to database
+        await history_repo.start_request(
+            request_id=request_id,
+            user_message=request.message,
+            event_name=request.event_name,
+            context=request.context,
+        )
+
         # Classification
         yield create_stream_event(
             "classification",
@@ -292,6 +315,13 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
 
         classification_result, target_agents = await stream_classification(state)
         state.target_agents = target_agents
+
+        # Log classification result
+        await history_repo.record_classification(
+            request_id=request_id,
+            target_agents=target_agents,
+            classification_result=classification_result,
+        )
 
         yield create_stream_event(
             "routing",
@@ -302,11 +332,13 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
         )
 
         if not target_agents:
+            await history_repo.complete_request(request_id, completed_agents=[])
             yield create_stream_event("complete", {"message": "No agents needed", "results": []})
             return
 
-        # Emit agent_start for all agents
+        # Emit agent_start for all agents and log to database
         for agent in target_agents:
+            await history_repo.start_agent(request_id, agent)
             yield create_stream_event(
                 "agent_start",
                 {"message": f"{agent.title()} agent starting..."},
@@ -316,17 +348,66 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
         # Run all agents in parallel
         result = await run_agents_parallel(state)
 
+        # Track pending approvals
+        pending_approval_ids: list[str] = []
+        approval_repo = _get_approval_repo()
+
         # Emit results for each agent
         for agent_result in result.get("agent_results", []):
+            # Log agent completion to database
+            await history_repo.complete_agent(
+                request_id=request_id,
+                agent_name=agent_result.agent_name,
+                message=agent_result.message,
+                data=agent_result.data,
+                tool_calls=agent_result.tool_calls,
+                pending_actions=getattr(agent_result, 'pending_actions', None),
+            )
             yield create_stream_event(
                 "agent_complete",
                 {
                     "status": agent_result.status,
                     "message": agent_result.message,
                     "data": agent_result.data,
+                    "tool_calls": agent_result.tool_calls,
                 },
                 agent_name=agent_result.agent_name,
             )
+
+            # Check for pending actions that require approval
+            if hasattr(agent_result, 'pending_actions') and agent_result.pending_actions:
+                for action in agent_result.pending_actions:
+                    approval_id = str(uuid.uuid4())
+                    approval_doc = ApprovalDocument.create_with_expiry(
+                        approval_id=approval_id,
+                        request_id=request_id,
+                        agent_name=agent_result.agent_name,
+                        action_type=action.get("action", "unknown"),
+                        action_description=action.get("preview", "Action requires approval"),
+                        action_data=action.get("args", {}),
+                        expiry_hours=24,
+                    )
+                    # Save to database
+                    await approval_repo.create(approval_doc)
+                    pending_approval_ids.append(approval_id)
+
+                    yield create_stream_event(
+                        "approval_required",
+                        {
+                            "approval_id": approval_id,
+                            "agent_name": agent_result.agent_name,
+                            "action_type": action.get("action", "unknown"),
+                            "description": action.get("preview", "Action requires approval"),
+                            "args": action.get("args", {}),
+                        },
+                    )
+
+        # Complete request in database
+        await history_repo.complete_request(
+            request_id=request_id,
+            completed_agents=result.get("completed_agents", []),
+            pending_approvals=pending_approval_ids if pending_approval_ids else None,
+        )
 
         # Complete
         yield create_stream_event(
@@ -336,11 +417,17 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
                 "request_id": request_id,
                 "agents_invoked": result.get("completed_agents", []),
                 "results": [r.model_dump() for r in result.get("agent_results", [])],
+                "pending_approvals": pending_approval_ids,
             },
         )
 
     except Exception as e:
         logger.error(f"Parallel stream error: {e}")
+        # Log error to database
+        try:
+            await history_repo.complete_request(request_id, completed_agents=[], error=str(e))
+        except Exception:
+            pass  # Don't fail on logging error
         yield create_stream_event("error", {"error": str(e), "request_id": request_id})
 
 
@@ -361,19 +448,48 @@ def create_event_stream(request: ChatRequest, parallel: bool = True) -> EventSou
     )
 
 
-def get_pending_approval(approval_id: str) -> Optional[PendingApproval]:
-    """Get a pending approval by ID."""
-    return PENDING_APPROVALS.get(approval_id)
+async def get_pending_approval(approval_id: str) -> Optional[ApprovalDocument]:
+    """Get a pending approval by ID from the database."""
+    approval_repo = _get_approval_repo()
+    return await approval_repo.find_by_approval_id(approval_id)
 
 
-def get_all_pending_approvals() -> list[PendingApproval]:
-    """Get all pending approvals."""
-    return [a for a in PENDING_APPROVALS.values() if a.status == "pending"]
+async def get_all_pending_approvals() -> list[ApprovalDocument]:
+    """Get all pending approvals from the database."""
+    approval_repo = _get_approval_repo()
+    return await approval_repo.find_pending()
 
 
-def update_approval_status(approval_id: str, status: str) -> Optional[PendingApproval]:
-    """Update the status of an approval."""
-    if approval_id in PENDING_APPROVALS:
-        PENDING_APPROVALS[approval_id].status = status
-        return PENDING_APPROVALS[approval_id]
-    return None
+async def update_approval_status(
+    approval_id: str,
+    status: str,
+    changed_by: Optional[str] = None,
+    reason: Optional[str] = None,
+    edits: Optional[dict] = None,
+    execution_result: Optional[dict] = None,
+) -> Optional[ApprovalDocument]:
+    """Update the status of an approval in the database."""
+    approval_repo = _get_approval_repo()
+    return await approval_repo.update_status(
+        approval_id=approval_id,
+        new_status=status,
+        changed_by=changed_by,
+        reason=reason,
+        edits=edits,
+        execution_result=execution_result,
+    )
+
+
+async def delete_approval(approval_id: str) -> bool:
+    """Delete an approval from the database."""
+    approval_repo = _get_approval_repo()
+    approval = await approval_repo.find_by_approval_id(approval_id)
+    if approval and approval.id:
+        return await approval_repo.delete_by_id(approval.id)
+    return False
+
+
+async def expire_old_approvals() -> int:
+    """Expire approvals that have passed their expiry time."""
+    approval_repo = _get_approval_repo()
+    return await approval_repo.expire_old_approvals()

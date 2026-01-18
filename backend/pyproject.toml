@@ -1,22 +1,22 @@
 [project]
 name = "nexus-backend"
 version = "0.1.0"
-description = "AI-native event production platform backend"
-readme = "README.md"
-requires-python = ">=3.12"
+description = "AI-Native Event Production Platform Backend"
+requires-python = ">=3.9"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
-    "pydantic>=2.10.0",
+    "pydantic>=2.9.0",
     "pydantic-settings>=2.6.0",
-    "langchain>=0.3.0",
-    "langchain-core>=0.3.0",
-    "langchain-google-genai>=2.0.0",
-    "langgraph>=0.2.0",
     "motor>=3.6.0",
-    "redis>=5.2.0",
+    "langchain>=0.3.0",
+    "langgraph>=0.2.0",
+    "langchain-google-genai>=2.0.0",
+    "langchain-openai>=0.1.0",
     "httpx>=0.28.0",
+    "redis>=5.2.0",
     "sse-starlette>=2.1.0",
+    "python-multipart>=0.0.9",
     "python-dotenv>=1.0.0",
     "mcp>=1.0.0",
     "google-api-python-client>=2.0.0",
@@ -29,21 +29,16 @@ dependencies = [
     "notion-client>=2.2.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.3.0",
-    "pytest-asyncio>=0.24.0",
-    "respx>=0.21.0",
-]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-pythonpath = ["."]
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src", "config"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
@@ -51,6 +46,3 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
-
-[tool.hatch.build.targets.wheel]
-packages = ["src", "config"]

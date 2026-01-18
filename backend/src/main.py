@@ -1,64 +1,59 @@
-"""FastAPI application entry point."""
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from config.settings import settings
-from src.api.routes import router
-from src.api.integrations import router as integrations_router
-from src.services.database import close_mongo_connection, connect_to_mongo
+from src.services.database import db_service
+from src.api.routes import router as api_router
+import logging
 
-#helps intialize it + manage lifespan
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nexus")
+
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manage application startup and shutdown events."""
-    await connect_to_mongo()
+async def lifespan(app: FastAPI):
+    """Lifecycle events: DB Connect on start, Close on shutdown"""
+    logger.info("Starting Nexus Backend...")
+    db_service.connect()
+
+    # Verify Connection
+    is_connected = await db_service.ping()
+    if is_connected:
+        logger.info("✅ Connected to MongoDB Atlas")
+
+        # Create database indexes
+        try:
+            await db_service.create_indexes()
+            logger.info("✅ MongoDB indexes created/verified")
+        except Exception as e:
+            logger.error(f"⚠️ Failed to create indexes: {e}")
+    else:
+        logger.error("❌ Failed to connect to MongoDB Atlas")
+
     yield
 
-    await close_mongo_connection()
+    await db_service.close()
+    logger.info("Nexus Backend Shutdown.")
 
-#creates a FastAPI instance
 app = FastAPI(
-    title=settings.app_name.title(),
-    description="AI-native event production platform API",
-    version="0.1.0",
-    debug=settings.debug,
-    lifespan=lifespan,
+    title="Nexus Backend API",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
-#allows cross-origin requests (front-end on another API to call)
+# CORS Setup - Allow Netlify and Railway domains
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [],
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"https://.*\.(netlify\.app|railway\.app)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api")
-app.include_router(integrations_router)  # OAuth integrations
+# Include Routes
+app.include_router(api_router, prefix="/api")
 
-#health status check
-@app.get("/health")
-async def health_check() -> dict:
-    """Health check endpoint."""
-    return {"status": "healthy", "app": settings.app_name}
-
-
-@app.get("/")
-async def root():
-    """Redirect to API documentation."""
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(url="/docs")
-
-#direct execution
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "src.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
-    )
+    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)

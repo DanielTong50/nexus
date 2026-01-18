@@ -1,0 +1,12 @@
+export { LandingNavbar } from "./LandingNavbar";
+export { Hero } from "./Hero";
+export { Sponsors } from "./Sponsors";
+export { Features } from "./Features";
+export { HowItWorks } from "./HowItWorks";
+export { AgentTeams } from "./AgentTeams";
+export { Stats } from "./Stats";
+export { Testimonials } from "./Testimonials";
+export { CTA } from "./CTA";
+export { FAQ } from "./FAQ";
+export { Footer } from "./Footer";
+export { LiveChat } from "./LiveChat";
