@@ -1,105 +1,51 @@
-"""FastAPI application entry point.
-
-Nexus Backend - AI-native event production platform.
-"""
-
-import logging
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from config.settings import settings
-from src.api.routes import router
-from src.services.database import close_mongo_connection, connect_to_mongo
+from src.services.database import db_service
+from src.api.routes import router as api_router
+import logging
 
-# Configure logging
-logging.basicConfig(
-    level=logging.DEBUG if settings.debug else logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
-
+# Configure Logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nexus")
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Manage application startup and shutdown events."""
-    # Startup
-    logger.info(f"Starting Nexus Backend ({settings.environment})")
-    logger.info(f"Active agent provider: {settings.active_agent_provider}")
+async def lifespan(app: FastAPI):
+    """Lifecycle events: DB Connect on start, Close on shutdown"""
+    logger.info("Starting Nexus Backend...")
+    db_service.connect()
 
-    try:
-        await connect_to_mongo()
-        logger.info("Database connected")
-    except Exception as e:
-        logger.error(f"Failed to connect to database: {e}")
-        # Continue anyway for development
+    # Verify Connection
+    is_connected = await db_service.ping()
+    if is_connected:
+        logger.info("✅ Connected to MongoDB Atlas")
+    else:
+        logger.error("❌ Failed to connect to MongoDB Atlas")
 
     yield
 
-    # Shutdown
-    logger.info("Shutting down Nexus Backend")
-    await close_mongo_connection()
+    await db_service.close()
+    logger.info("Nexus Backend Shutdown.")
 
-
-# Create FastAPI app
 app = FastAPI(
-    title="Nexus API",
-    description="AI-native event production platform API",
-    version="0.1.0",
-    debug=settings.debug,
-    lifespan=lifespan,
+    title="Nexus Backend API",
+    version="1.0.0",
+    lifespan=lifespan
 )
 
-# Configure CORS
+# CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins if not settings.debug else ["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(router, prefix="/api")
+# Include Routes
+app.include_router(api_router, prefix="/api")
 
-
-@app.get("/health")
-async def health_check() -> dict:
-    """Health check endpoint."""
-    from src.services.database import ping
-
-    db_status = "connected"
-    try:
-        await ping()
-    except Exception:
-        db_status = "disconnected"
-
-    return {
-        "status": "healthy" if db_status == "connected" else "degraded",
-        "app": settings.app_name,
-        "environment": settings.environment,
-        "database": db_status,
-        "llm_provider": settings.active_agent_provider,
-    }
-
-
-@app.get("/")
-async def root():
-    """Redirect to API documentation."""
-    from fastapi.responses import RedirectResponse
-
-    return RedirectResponse(url="/docs")
-
-
-# Run with uvicorn
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run(
-        "src.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=settings.debug,
-    )
+    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -66,10 +66,12 @@ class TestClassifyRequest:
     @pytest.fixture
     def mock_llm(self):
         """Mock the LLM for testing."""
-        with patch("src.graph.classifier._get_classifier_llm") as mock:
-            llm_instance = MagicMock()
-            mock.return_value = llm_instance
-            yield llm_instance
+        patcher = patch("src.graph.classifier._get_classifier_llm")
+        mock = patcher.start()
+        llm_instance = MagicMock()
+        mock.return_value = llm_instance
+        yield llm_instance
+        patcher.stop()
 
     @pytest.fixture
     def base_state(self):
@@ -80,15 +82,19 @@ class TestClassifyRequest:
         )
 
     @pytest.mark.asyncio
-    async def test_partnerships_classification(self, mock_llm, base_state):
+    async def test_partnerships_classification(self, base_state):
         """Classify partnerships-related request."""
         base_state.user_message = "Update the sponsor sheet for Google"
 
         mock_response = MagicMock()
         mock_response.content = '{"request_type": "sponsor", "target_agents": ["partnerships"], "confidence": 0.9, "reasoning": "sponsor related"}'
-        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        
+        with patch("src.graph.classifier._get_classifier_llm") as mock_get_llm:
+            mock_llm = MagicMock()
+            mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+            mock_get_llm.return_value = mock_llm
 
-        result = await classify_request(base_state)
+            result = await classify_request(base_state)
 
         assert "partnerships" in result["target_agents"]
 
@@ -165,10 +171,12 @@ class TestClassifyWithDetails:
     @pytest.fixture
     def mock_llm(self):
         """Mock the LLM for testing."""
-        with patch("src.graph.classifier._get_classifier_llm") as mock:
-            llm_instance = MagicMock()
-            mock.return_value = llm_instance
-            yield llm_instance
+        patcher = patch("src.graph.classifier._get_classifier_llm")
+        mock = patcher.start()
+        llm_instance = MagicMock()
+        mock.return_value = llm_instance
+        yield llm_instance
+        patcher.stop()
 
     @pytest.mark.asyncio
     async def test_detailed_response(self, mock_llm):

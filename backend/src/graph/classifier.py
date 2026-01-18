@@ -51,12 +51,12 @@ Rules:
 4. Be conservative - only route to agents that are clearly needed
 
 Respond in JSON format:
-{
+{{
   "request_type": "brief description",
   "target_agents": ["agent1", "agent2"],
   "confidence": 0.9,
   "reasoning": "why these agents"
-}
+}}
 
 User message: {message}
 """
