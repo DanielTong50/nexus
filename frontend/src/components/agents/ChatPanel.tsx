@@ -234,8 +234,8 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                                 </FloatingBubble>
                             </div>
 
-                            <p className="text-sm font-normal text-slate-400 mb-10">
-                                Integrated Every Feature <span className="text-blue-500 font-medium">powered by Vultr</span>
+                            <p className="text-sm font-normal text-slate-400 mb-10 uppercase tracking-wide">
+                                Integrated Every Feature <span className="text-blue-500 font-medium">Powered by Vultr</span>
                             </p>
                         </div>
                     ) : (
