@@ -86,10 +86,43 @@ System Architecture Diagram
                                 │
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
+│                      MCP CLIENT (stdio transport)                   │
+│  Spawns MCP servers as subprocesses, manages lifecycle              │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                         MCP SERVERS                                 │
+│  google_sheets_server.py │ (future: slack, github, etc.)            │
+└─────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+┌─────────────────────────────────────────────────────────────────────┐
 │                         EXTERNAL SERVICES                           │
 │  Google Sheets │ Slack │ Figma │ GitHub │ Calendly │ LinkedIn      │
 └─────────────────────────────────────────────────────────────────────┘
 ```
+
+MCP Architecture
+
+The Model Context Protocol (MCP) provides a standardized way for agents to interact with external services.
+
+Design:
+- MCP Client: `src/services/mcp_client.py` - Manages MCP server lifecycle
+- MCP Servers: `src/mcp_servers/` - Custom Python servers for each external service
+- Transport: stdio (subprocesses) - servers spawned on-demand
+- Config: `mcp_enabled` setting to toggle MCP integration
+
+Flow:
+```
+Agent → Tool → MCP Client → MCP Server (subprocess) → External API
+```
+
+Google Sheets MCP Server:
+- Location: `src/mcp_servers/google_sheets_server.py`
+- Tools exposed: `read_range`, `append_row`, `update_range`
+- Auth: Service account via `GOOGLE_SERVICE_ACCOUNT_JSON` env var
+- Called via: `mcp_client.call_google_sheets_tool(tool_name, arguments)`
 
 LangGraph Flow
 
@@ -203,14 +236,17 @@ nexus/
 │   │   │   ├── workflow.py     # LangGraph definition
 │   │   │   └── error_handler.py
 │   │   ├── tools/
-│   │   │   ├── google_sheets.py
+│   │   │   ├── google_sheets.py  # Uses MCP client
 │   │   │   ├── slack.py
 │   │   │   ├── figma.py
 │   │   │   ├── github.py
 │   │   │   ├── calendly.py
 │   │   │   └── social.py
+│   │   ├── mcp_servers/           # MCP server implementations
+│   │   │   └── google_sheets_server.py
 │   │   ├── services/
 │   │   │   ├── database.py
+│   │   │   ├── mcp_client.py      # MCP client manager
 │   │   │   └── auth.py
 │   │   └── models/
 │   │       ├── state.py
@@ -296,6 +332,9 @@ Backend (pyproject.toml):
 - redis >= 5.2.0
 - httpx >= 0.28.0
 - sse-starlette >= 2.1.0
+- mcp >= 1.3.0 (Model Context Protocol SDK)
+- google-api-python-client >= 2.150.0
+- google-auth >= 2.36.0
 - pytest >= 8.3.0
 - pytest-asyncio >= 0.24.0
 

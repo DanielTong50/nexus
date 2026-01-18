@@ -150,6 +150,9 @@ export async function sendChatMessage(message: string, eventId: string) {
 - Always handle loading and error states
 - Use try/catch, display user-friendly errors
 
+### Backend MCP Integration
+The backend uses MCP (Model Context Protocol) to communicate with external services like Google Sheets. This is transparent to the frontend - you only need to call the REST API endpoints. The SSE stream may include updates about MCP tool calls being executed (e.g., "Updating Google Sheet...").
+
 ## Accessibility
 - All interactive elements focusable
 - Keyboard navigation in navbar
