@@ -57,29 +57,66 @@ from src.models.state import GraphState
 - Use `@tool` decorator from langchain_core
 - Include docstring with clear description for LLM
 - Handle errors gracefully - return error message, don't raise
+- **Tools call MCP client, not external APIs directly**
 
-### Pattern
+### Tool Pattern (using MCP)
 ```python
+from src.services.mcp_client import mcp_client
+
 @tool
-async def log_partnership_status(
-    event_name: str,
-    partner_name: str,
-    category: str,
+async def log_partnership(
+    sheet_name: str,
+    company: str,
     status: str
 ) -> str:
-    """Update partnership status in Google Sheet.
+    """Add partnership entry to Google Sheet.
    
     Args:
-        event_name: Name of the event (e.g., "Blueprint")
-        partner_name: Company or person name
-        category: One of: Sponsors, Judges, Mentors, StudentMentors
-        status: One of: pending, verbal confirmation, secured, rejected
+        sheet_name: Name of the sheet (e.g., 'Boothing Companies')
+        company: Company name
+        status: Current status (pending, confirmed, rejected)
     """
     try:
-        # implementation
-        return f"Updated {partner_name} to {status}"
+        row = [[company, "", "", "", status, "", ""]]
+        await mcp_client.call_google_sheets_tool(
+            "append_row",
+            {"range": f"{sheet_name}!A:G", "values": row}
+        )
+        return f"Added {company} to {sheet_name}"
     except Exception as e:
-        return f"Failed to update: {str(e)}"
+        return f"Failed to add: {str(e)}"
+```
+
+### MCP (Model Context Protocol)
+- MCP servers go in `src/mcp_servers/` - one per external service
+- MCP client in `src/services/mcp_client.py` manages server lifecycle
+- Servers use stdio transport (spawned as subprocesses)
+- Toggle with `mcp_enabled` setting
+
+### MCP Server Pattern
+```python
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import Tool, TextContent
+
+server = Server("my-service-server")
+
+@server.list_tools()
+async def list_tools() -> list[Tool]:
+    return [Tool(name="my_tool", description="...", inputSchema={...})]
+
+@server.call_tool()
+async def call_tool(name: str, arguments: dict) -> list[TextContent]:
+    # Execute tool and return result
+    return [TextContent(type="text", text=json.dumps(result))]
+```
+
+### MCP Client Usage
+```python
+from src.services.mcp_client import mcp_client
+
+# Call MCP tool
+result = await mcp_client.call_google_sheets_tool("read_range", {"range": "Sheet1!A:G"})
 ```
 
 ### Graph (LangGraph)
@@ -147,14 +184,19 @@ async def test_log_partnership_status():
 ```
 backend/
 ├── config/
-│   ├── settings.py      # Pydantic Settings class
+│   ├── settings.py      # Pydantic Settings (mcp_enabled, etc.)
 │   ├── prompts.py       # All LLM prompts
 │   └── tool_schemas.py  # Tool definitions
 ├── src/
 │   ├── agents/          # One file per agent
 │   ├── graph/           # LangGraph workflow
-│   ├── tools/           # One file per external service
-│   ├── services/        # Database, auth
+│   ├── tools/           # LangChain tools (call MCP client)
+│   ├── mcp_servers/     # MCP server implementations
+│   │   └── google_sheets_server.py
+│   ├── services/
+│   │   ├── mcp_client.py  # MCP client manager
+│   │   ├── database.py
+│   │   └── auth.py
 │   └── models/          # Pydantic models
 └── tests/
 ```
@@ -165,3 +207,5 @@ backend/
 - Don't return raw dicts from agents
 - Don't forget to await async functions
 - Don't put business logic in route handlers
+- Don't call external APIs directly from tools - use MCP client
+- Don't forget to check `mcp_enabled` setting before MCP calls
