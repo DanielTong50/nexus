@@ -138,13 +138,42 @@ function UserMessageBubble({ message }: { message: UserMessage }) {
 // Assistant/agent message bubble component (left-aligned)
 function AssistantMessageBubble({ message }: { message: AssistantMessage }) {
     const handleDownload = () => {
-        if (message.downloadUrl) {
-            // Construct full URL using the API base
+        // New: Handle base64 data download directly
+        if (message.downloadData && message.downloadFilename) {
+            try {
+                // Convert base64 to blob
+                const byteCharacters = atob(message.downloadData);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], {
+                    type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                });
+
+                // Create download link and trigger
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = message.downloadFilename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Failed to download file:', error);
+            }
+        }
+        // Legacy: Handle URL-based download
+        else if (message.downloadUrl) {
             const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
             const fullUrl = `${apiBase}${message.downloadUrl}`;
             window.open(fullUrl, '_blank');
         }
     };
+
+    const hasDownload = message.downloadData || message.downloadUrl;
 
     return (
         <motion.div
@@ -157,7 +186,7 @@ function AssistantMessageBubble({ message }: { message: AssistantMessage }) {
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
 
                 {/* Download button for generated files */}
-                {message.downloadUrl && (
+                {hasDownload && (
                     <div className="mt-3 pt-3 border-t border-slate-200">
                         <button
                             onClick={handleDownload}

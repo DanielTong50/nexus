@@ -208,6 +208,8 @@ Progress: {int(total/100000*100)}%"""
 # MOU and Invoice Document Generation
 # =============================================================================
 
+import base64
+import io
 import logging
 import os
 import re
@@ -514,23 +516,23 @@ async def generate_mou_invoice(
         # Load and process template
         doc = Document(str(TEMPLATE_PATH))
         _replace_tags_in_document(doc, tag_mapping)
-        
+
         # Generate output filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = re.sub(r'[^\w\s-]', '', sponsor_company_name).replace(' ', '_')
         output_filename = f"MOU_Invoice_{safe_name}_{timestamp}.docx"
-        output_path = OUTPUT_DIR / output_filename
-        
-        # Save document
-        doc.save(str(output_path))
-        
-        # Build download URL
-        download_url = f"/api/files/{output_filename}"
+
+        # Save document to memory buffer instead of disk
+        doc_buffer = io.BytesIO()
+        doc.save(doc_buffer)
+        doc_buffer.seek(0)
+
+        # Convert to base64 for direct download
+        doc_base64 = base64.b64encode(doc_buffer.getvalue()).decode('utf-8')
 
         # Build preview of populated values
         preview_lines = ["[PENDING APPROVAL] MOU/Invoice Document Generated:", ""]
         preview_lines.append(f"📄 **File:** {output_filename}")
-        preview_lines.append(f"📥 **Download:** [{output_filename}]({download_url})")
         preview_lines.append("")
         preview_lines.append("**Populated Values:**")
         for tag, value in tag_mapping.items():
@@ -542,8 +544,9 @@ async def generate_mou_invoice(
         preview_lines.append("")
         preview_lines.append("⚠️ This document requires your approval before sending to the sponsor.")
 
-        # Return structured response with download URL for frontend
-        return f"DOWNLOAD_URL:{download_url}\n" + "\n".join(preview_lines)
+        # Return structured response with base64 data for frontend direct download
+        # Format: DOWNLOAD_DATA:<filename>:<base64data>\n<preview>
+        return f"DOWNLOAD_DATA:{output_filename}:{doc_base64}\n" + "\n".join(preview_lines)
         
     except Exception as e:
         logger.error(f"Error generating MOU/Invoice: {e}")

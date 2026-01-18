@@ -524,13 +524,27 @@ export function useAgentStream(): UseAgentStreamReturn {
                     completedAgentCountRef.current += 1;
 
                     setTimeout(() => {
-                        // Extract download URL if present (format: DOWNLOAD_URL:/api/files/filename.docx\n...)
+                        // Extract download data if present
+                        // New format: DOWNLOAD_DATA:<filename>:<base64data>\n<preview>
+                        // Legacy format: DOWNLOAD_URL:/api/files/filename.docx\n...
                         let downloadUrl: string | undefined;
                         let downloadFilename: string | undefined;
+                        let downloadData: string | undefined;
                         let displayMessage = completeMessage;
 
-                        // First check if the message itself contains DOWNLOAD_URL
-                        if (completeMessage.startsWith('DOWNLOAD_URL:')) {
+                        // Check for new DOWNLOAD_DATA format (base64 embedded)
+                        if (completeMessage.startsWith('DOWNLOAD_DATA:')) {
+                            const lines = completeMessage.split('\n');
+                            const dataLine = lines[0];
+                            const parts = dataLine.replace('DOWNLOAD_DATA:', '').split(':');
+                            if (parts.length >= 2) {
+                                downloadFilename = parts[0];
+                                downloadData = parts.slice(1).join(':'); // In case base64 has colons
+                            }
+                            displayMessage = lines.slice(1).join('\n').trim();
+                        }
+                        // Legacy: check if the message contains DOWNLOAD_URL
+                        else if (completeMessage.startsWith('DOWNLOAD_URL:')) {
                             const lines = completeMessage.split('\n');
                             const urlLine = lines[0];
                             downloadUrl = urlLine.replace('DOWNLOAD_URL:', '').trim();
@@ -538,21 +552,35 @@ export function useAgentStream(): UseAgentStreamReturn {
                             displayMessage = lines.slice(1).join('\n').trim();
                         }
 
-                        // Also check tool calls for download URLs
+                        // Also check tool calls for download data/URLs
                         const toolCalls = data.tool_calls as Array<{
                             tool_name: string;
                             output: string;
                             status: string;
                         }> | undefined;
 
-                        if (!downloadUrl && toolCalls) {
+                        if (!downloadData && !downloadUrl && toolCalls) {
                             for (const toolCall of toolCalls) {
-                                if (toolCall.output && toolCall.output.startsWith('DOWNLOAD_URL:')) {
-                                    const lines = toolCall.output.split('\n');
-                                    const urlLine = lines[0];
-                                    downloadUrl = urlLine.replace('DOWNLOAD_URL:', '').trim();
-                                    downloadFilename = downloadUrl.split('/').pop();
-                                    break;
+                                if (toolCall.output) {
+                                    // Check for new DOWNLOAD_DATA format
+                                    if (toolCall.output.startsWith('DOWNLOAD_DATA:')) {
+                                        const lines = toolCall.output.split('\n');
+                                        const dataLine = lines[0];
+                                        const parts = dataLine.replace('DOWNLOAD_DATA:', '').split(':');
+                                        if (parts.length >= 2) {
+                                            downloadFilename = parts[0];
+                                            downloadData = parts.slice(1).join(':');
+                                        }
+                                        break;
+                                    }
+                                    // Legacy DOWNLOAD_URL format
+                                    else if (toolCall.output.startsWith('DOWNLOAD_URL:')) {
+                                        const lines = toolCall.output.split('\n');
+                                        const urlLine = lines[0];
+                                        downloadUrl = urlLine.replace('DOWNLOAD_URL:', '').trim();
+                                        downloadFilename = downloadUrl.split('/').pop();
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -565,6 +593,7 @@ export function useAgentStream(): UseAgentStreamReturn {
                                 content: displayMessage,
                                 downloadUrl,
                                 downloadFilename,
+                                downloadData,
                                 timestamp: event.timestamp,
                             }
                         }]);

@@ -66,8 +66,9 @@ export interface AssistantMessage {
     id: string;
     agentName: string;
     content: string;
-    downloadUrl?: string;           // URL to download generated file
+    downloadUrl?: string;           // URL to download generated file (legacy)
     downloadFilename?: string;      // Filename for download
+    downloadData?: string;          // Base64 encoded file data for direct download
     timestamp: string;
 }
 
