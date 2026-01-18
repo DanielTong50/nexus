@@ -13,8 +13,8 @@ AI-native event production platform with 5 agents (Partnerships, Marketing, Fina
 ## Key Files
 - `HIGH_LEVEL_PROJECT_DOC.md` - Agent tools and workflows
 - `TECHNICAL_ARCHITECTURE.md` - System design and folder structure
-- `.cursor/rules/backend.md` - Backend coding standards
-- `.cursor/rules/frontend.md` - Frontend coding standards
+- `backend.md` - Backend coding standards
+- `frontend.md` - Frontend coding standards
 
 ## Config-Driven Development
 NEVER hardcode:
