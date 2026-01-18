@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     google_api_key: str = ""
 
     # LLM Models
-    classifier_model: str = "gemini-2.0-flash"
-    agent_model: str = "gemini-2.0-flash"
+    classifier_model: str = "gemini-3.0-pro"
+    agent_model: str = "gemini-3.0-flash"
 
     # External Services
     slack_bot_token: str = ""
