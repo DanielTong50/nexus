@@ -72,8 +72,8 @@ export default function LandingPage() {
                     </div>
                 </GravityStarsBackground>
 
-                <DemoVideo />
                 <HowItWorks />
+                <DemoVideo />
                 <Stats />
                 <Testimonials />
                 <MeetTheTeam />
