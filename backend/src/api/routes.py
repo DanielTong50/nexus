@@ -1,16 +1,19 @@
 """API route definitions for Nexus backend.
 
 Endpoints:
+- GET /health - Health check
 - POST /chat - Synchronous chat processing
 - POST /chat/stream - SSE streaming chat
 - GET /chat/stream - SSE streaming via GET (for EventSource)
 - POST /approve - Approve/reject pending actions
 - GET /approvals - List pending approvals
 - GET /agents - List available agents
+- GET /data/* - Data endpoints for frontend views
 """
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -375,6 +378,16 @@ async def list_agents() -> dict:
     }
 
 
+@router.get("/health")
+async def health_check() -> dict:
+    """Basic health check endpoint."""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "nexus-backend",
+    }
+
+
 @router.get("/health/agents")
 async def check_agents_health() -> dict:
     """Check health status of all agents."""
@@ -386,4 +399,180 @@ async def check_agents_health() -> dict:
             name: "registered" for name in AGENT_RUNNERS.keys()
         },
         "count": len(AGENT_RUNNERS),
+    }
+
+
+# Data endpoints for frontend views
+
+@router.get("/data/partnerships")
+async def get_partnerships_data() -> dict:
+    """Get partnerships data for the Partnerships view."""
+    from src.tools.google_sheets import MOCK_PARTNERSHIPS
+
+    sponsors = []
+    for row in MOCK_PARTNERSHIPS.get("Boothing Companies", [])[1:]:
+        if len(row) >= 6:
+            sponsors.append({
+                "company": row[0],
+                "contact": row[1],
+                "email": row[2],
+                "position": row[3],
+                "status": row[4],
+                "tier": row[5],
+                "notes": row[6] if len(row) > 6 else "",
+            })
+
+    judges = []
+    for row in MOCK_PARTNERSHIPS.get("Judges", [])[1:]:
+        if len(row) >= 6:
+            judges.append({
+                "company": row[0],
+                "contact": row[1],
+                "email": row[2],
+                "position": row[3],
+                "status": row[4],
+                "role": row[5],
+            })
+
+    mentors = []
+    for row in MOCK_PARTNERSHIPS.get("Mentors", [])[1:]:
+        if len(row) >= 6:
+            mentors.append({
+                "company": row[0],
+                "contact": row[1],
+                "email": row[2],
+                "position": row[3],
+                "status": row[4],
+                "role": row[5],
+            })
+
+    return {
+        "sponsors": sponsors,
+        "judges": judges,
+        "mentors": mentors,
+        "summary": {
+            "total_sponsors": len(sponsors),
+            "confirmed": sum(1 for s in sponsors if s["status"] == "Confirmed"),
+            "pending": sum(1 for s in sponsors if s["status"] == "Pending"),
+            "in_discussion": sum(1 for s in sponsors if s["status"] == "In Discussion"),
+        },
+    }
+
+
+@router.get("/data/finance")
+async def get_finance_data() -> dict:
+    """Get finance data for the Finance view."""
+    from src.tools.finance import MOCK_BUDGET
+
+    return {
+        "budget": MOCK_BUDGET,
+        "tiers": {
+            "Platinum": {"count": 1, "amount": 25000, "total": 25000},
+            "Gold": {"count": 2, "amount": 15000, "total": 30000},
+            "Silver": {"count": 2, "amount": 5000, "total": 10000},
+        },
+        "goal": 100000,
+        "confirmed_total": 65000,
+        "pending_total": 15000,
+    }
+
+
+@router.get("/data/events")
+async def get_events_data() -> dict:
+    """Get events/logistics data for the Events view."""
+    return {
+        "event_name": "Blueprint",
+        "venue": {
+            "location": "Tech Campus Building A",
+            "capacity": 500,
+            "status": "Confirmed",
+            "setup_time": "Day before, 2pm-8pm",
+        },
+        "schedule": {
+            "check_in": "8:00 AM",
+            "opening": "9:00 AM",
+            "workshops": "10:00 AM - 5:00 PM",
+            "closing": "6:00 PM",
+        },
+        "catering": {
+            "breakfast": {"time": "8:00 AM", "type": "light"},
+            "lunch": {"time": "12:00 PM", "type": "boxed"},
+            "snacks": {"time": "3:00 PM", "type": "standard"},
+        },
+        "equipment": {
+            "projectors": {"count": 5, "status": "confirmed"},
+            "microphones": {"count": 10, "status": "confirmed"},
+            "extension_cords": {"count": 50, "status": "pending"},
+        },
+        "tasks": [
+            {"task": "Finalize catering menu", "status": "pending", "due": "1 week"},
+            {"task": "Confirm AV equipment", "status": "in_progress", "due": "3 days"},
+            {"task": "Send volunteer schedule", "status": "pending", "due": "5 days"},
+        ],
+    }
+
+
+@router.get("/data/marketing")
+async def get_marketing_data() -> dict:
+    """Get marketing data for the Marketing view."""
+    return {
+        "campaigns": [
+            {
+                "name": "Early Bird Registration",
+                "status": "active",
+                "platforms": ["instagram", "linkedin", "twitter"],
+                "progress": 75,
+            },
+            {
+                "name": "Speaker Announcements",
+                "status": "scheduled",
+                "platforms": ["linkedin", "twitter"],
+                "progress": 40,
+            },
+            {
+                "name": "Sponsor Spotlights",
+                "status": "planned",
+                "platforms": ["instagram", "linkedin"],
+                "progress": 10,
+            },
+        ],
+        "content_calendar": [
+            {"date": "2024-01-20", "type": "social", "platform": "instagram", "status": "scheduled"},
+            {"date": "2024-01-22", "type": "email", "platform": "mailchimp", "status": "draft"},
+            {"date": "2024-01-25", "type": "social", "platform": "linkedin", "status": "planned"},
+        ],
+        "assets": {
+            "ready": 12,
+            "in_progress": 5,
+            "pending": 3,
+        },
+    }
+
+
+@router.get("/data/developers")
+async def get_developers_data() -> dict:
+    """Get developers data for the Developers view."""
+    return {
+        "repository": {
+            "name": "jimmysamportfolio/nexus",
+            "open_prs": 3,
+            "open_issues": 5,
+            "recent_commits": 12,
+        },
+        "open_prs": [
+            {"number": 42, "title": "Add authentication system", "author": "dev1", "status": "Ready for review"},
+            {"number": 41, "title": "Fix API rate limiting", "author": "dev2", "status": "Changes requested"},
+            {"number": 40, "title": "Update documentation", "author": "dev3", "status": "Draft"},
+        ],
+        "open_issues": [
+            {"number": 55, "title": "Login bug on mobile", "labels": ["bug", "high-priority"], "assignee": "dev1"},
+            {"number": 54, "title": "Feature request: Dark mode", "labels": ["enhancement"], "assignee": "dev2"},
+            {"number": 52, "title": "Improve error messages", "labels": ["enhancement", "good-first-issue"], "assignee": None},
+        ],
+        "recent_activity": [
+            {"type": "commit", "message": "feat: Add user authentication", "time": "3 days ago"},
+            {"type": "commit", "message": "fix: Resolve API rate limiting", "time": "2 days ago"},
+            {"type": "commit", "message": "docs: Update README", "time": "1 day ago"},
+            {"type": "commit", "message": "refactor: Clean up API routes", "time": "today"},
+        ],
     }

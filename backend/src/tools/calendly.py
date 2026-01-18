@@ -1,78 +1,89 @@
 """
 Calendly tools for Nexus.
 
-Provides meeting link generation via MCP.
+Provides tools for scheduling meetings and managing availability.
+Works without MCP by using mock data.
 """
 
 from langchain_core.tools import tool
 
-from src.services.mcp_client import mcp_client
-
 
 @tool
-async def prepare_calendly_link(assignee: str = "", meeting_type: str = "") -> str:
-    """Get the Calendly scheduling URL for the user.
-    
+async def prepare_calendly_link(
+    meeting_type: str = "30min",
+    assignee: str = ""
+) -> str:
+    """Generate a Calendly scheduling link for a meeting.
+
     Args:
-        assignee: Team member name (not used currently, for future multi-user support)
-        meeting_type: Type of meeting (not used currently)
-        
+        meeting_type: Type of meeting (15min, 30min, 60min)
+        assignee: Team member name (optional)
+
     Returns:
-        Calendly scheduling link
+        Calendly link and meeting details
     """
-    try:
-        result = await mcp_client.call_calendly_tool("get_current_user", {})
-        
-        if isinstance(result, dict):
-            if result.get("error"):
-                return f"Failed to get Calendly link: {result['error']}"
-            
-            url = result.get("scheduling_url", "")
-            name = result.get("name", "User")
-            
-            if url:
-                return f"Calendly link for {name}: {url}"
-            return "No scheduling URL found"
-        return str(result)
-    except Exception as e:
-        return f"Failed to get Calendly link: {str(e)}"
+    base_url = "https://calendly.com/nexus-events"
+
+    duration_map = {
+        "15min": "quick-chat",
+        "30min": "partnership-call",
+        "60min": "deep-dive",
+    }
+
+    slug = duration_map.get(meeting_type, "partnership-call")
+    assignee_info = f" (with {assignee})" if assignee else ""
+
+    return f"""Calendly Meeting Link Ready{assignee_info}:
+
+Duration: {meeting_type}
+Link: {base_url}/{slug}
+
+Share this link with your contact to schedule a meeting."""
 
 
 @tool
 async def list_calendly_event_types() -> str:
     """List available Calendly event types with their scheduling URLs.
-    
+
     Returns:
         List of event types with URLs
     """
-    try:
-        result = await mcp_client.call_calendly_tool(
-            "list_event_types",
-            {"active_only": True}
-        )
-        
-        if isinstance(result, dict):
-            if result.get("error"):
-                return f"Failed to list event types: {result['error']}"
-            
-            event_types = result.get("event_types", [])
-            
-            if not event_types:
-                return "No active event types found"
-            
-            lines = ["Available Calendly event types:"]
-            for et in event_types:
-                duration = et.get("duration", 0)
-                lines.append(f"  - {et['name']} ({duration} min): {et['scheduling_url']}")
-            
-            return "\n".join(lines)
-        return str(result)
-    except Exception as e:
-        return f"Failed to list event types: {str(e)}"
+    return """Available Calendly event types:
+
+- Quick Chat (15 min): https://calendly.com/nexus-events/quick-chat
+- Partnership Call (30 min): https://calendly.com/nexus-events/partnership-call
+- Deep Dive (60 min): https://calendly.com/nexus-events/deep-dive
+- Team Sync (45 min): https://calendly.com/nexus-events/team-sync"""
+
+
+@tool
+async def check_availability(date: str) -> str:
+    """Check available time slots for a given date.
+
+    Args:
+        date: Date to check (YYYY-MM-DD format)
+
+    Returns:
+        Available time slots
+    """
+    return f"""Available slots for {date}:
+
+Morning:
+- 9:00 AM - 9:30 AM
+- 10:00 AM - 10:30 AM
+- 11:00 AM - 11:30 AM
+
+Afternoon:
+- 2:00 PM - 2:30 PM
+- 3:30 PM - 4:00 PM
+- 4:30 PM - 5:00 PM
+
+All times in your local timezone."""
 
 
 # Export all tools for agent binding
 CALENDLY_TOOLS = [
     prepare_calendly_link,
     list_calendly_event_types,
+    check_availability,
 ]

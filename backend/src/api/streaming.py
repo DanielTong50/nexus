@@ -316,6 +316,9 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
         # Run all agents in parallel
         result = await run_agents_parallel(state)
 
+        # Track pending approvals
+        pending_approval_ids: list[str] = []
+
         # Emit results for each agent
         for agent_result in result.get("agent_results", []):
             yield create_stream_event(
@@ -324,9 +327,36 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
                     "status": agent_result.status,
                     "message": agent_result.message,
                     "data": agent_result.data,
+                    "tool_calls": agent_result.tool_calls,
                 },
                 agent_name=agent_result.agent_name,
             )
+
+            # Check for pending actions that require approval
+            if hasattr(agent_result, 'pending_actions') and agent_result.pending_actions:
+                for action in agent_result.pending_actions:
+                    approval_id = str(uuid.uuid4())
+                    approval = PendingApproval(
+                        approval_id=approval_id,
+                        request_id=request_id,
+                        agent_name=agent_result.agent_name,
+                        action_type=action.get("action", "unknown"),
+                        action_description=action.get("preview", "Action requires approval"),
+                        action_data=action.get("args", {}),
+                    )
+                    PENDING_APPROVALS[approval_id] = approval
+                    pending_approval_ids.append(approval_id)
+
+                    yield create_stream_event(
+                        "approval_required",
+                        {
+                            "approval_id": approval_id,
+                            "agent_name": agent_result.agent_name,
+                            "action_type": action.get("action", "unknown"),
+                            "description": action.get("preview", "Action requires approval"),
+                            "args": action.get("args", {}),
+                        },
+                    )
 
         # Complete
         yield create_stream_event(
@@ -336,6 +366,7 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
                 "request_id": request_id,
                 "agents_invoked": result.get("completed_agents", []),
                 "results": [r.model_dump() for r in result.get("agent_results", [])],
+                "pending_approvals": pending_approval_ids,
             },
         )
 

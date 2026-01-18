@@ -1,34 +1,87 @@
+"""Application settings using Pydantic Settings."""
+
+from functools import lru_cache
 from typing import List, Literal, Optional
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from pydantic import SecretStr, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 
 class Settings(BaseSettings):
-    # App Config
-    ENVIRONMENT: Literal["dev", "development", "prod", "production"] = Field(default="dev", alias="APP_ENV")
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
-
-    # Database (MongoDB Atlas)
-    MONGO_URI: str = Field(alias="MONGODB_URI")
-    DB_NAME: str = Field(default="nexus-core", alias="MONGODB_DATABASE")
-
-    # LLM Provider 1: Google Gemini (Classifier & Agents)
-    GEMINI_API_KEY: SecretStr = Field(alias="GOOGLE_API_KEY")
-    CLASSIFIER_MODEL: str = "gemini-1.5-pro"
-    AGENT_MODEL_GEMINI: str = Field(default="gemini-1.5-flash", alias="AGENT_MODEL")
-
-    # LLM Provider 2: Vultr / OpenAI Compatible (Agents Only)
-    VULTR_API_KEY: Optional[SecretStr] = None
-    VULTR_INFERENCE_URL: str = "https://api.vultrinference.com/v1"
-    AGENT_MODEL_VULTR: str = Field(default="zephyr-7b-beta-Q5_K_M", alias="VULTR_AGENT_MODEL")
-
-    # Master Switch: Selects which provider runs the Agents
-    ACTIVE_AGENT_PROVIDER: Literal["gemini", "vultr"] = "gemini"
+    """Application configuration loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=("../.env", ".env"),  # Look in parent (project root) first, then current
+        env_file=("../.env", ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
-        populate_by_name=True  # Allow both alias and field name
+        populate_by_name=True,
     )
 
-settings = Settings()
+    # Application
+    app_name: str = "nexus"
+    app_env: Literal["development", "staging", "production", "dev", "prod"] = Field(
+        default="development", alias="APP_ENV"
+    )
+    debug: bool = True
+    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+
+    # MongoDB
+    mongodb_uri: str = Field(default="mongodb://localhost:27017", alias="MONGODB_URI")
+    mongodb_database: str = Field(default="nexus", alias="MONGODB_DATABASE")
+
+    # Aliases for backward compatibility
+    @property
+    def MONGO_URI(self) -> str:
+        return self.mongodb_uri
+
+    @property
+    def DB_NAME(self) -> str:
+        return self.mongodb_database
+
+    # Redis
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+
+    # Google AI (Gemini)
+    google_api_key: str = Field(default="", alias="GOOGLE_API_KEY")
+
+    # LLM Models
+    classifier_model: str = Field(default="gemini-2.0-flash", alias="CLASSIFIER_MODEL")
+    agent_model: str = Field(default="gemini-2.0-flash", alias="AGENT_MODEL")
+
+    # Vultr (Alternative LLM Provider)
+    vultr_api_key: Optional[str] = Field(default=None, alias="VULTR_API_KEY")
+    vultr_inference_url: str = "https://api.vultrinference.com/v1"
+    vultr_agent_model: str = Field(default="llama-3.3-70b-instruct-fp8", alias="VULTR_AGENT_MODEL")
+    active_agent_provider: Literal["gemini", "vultr"] = "gemini"
+
+    # MCP Settings
+    mcp_enabled: bool = True
+
+    # External Services
+    slack_bot_token: str = Field(default="", alias="SLACK_BOT_TOKEN")
+    slack_signing_secret: str = Field(default="", alias="SLACK_SIGNING_SECRET")
+    slack_allowed_channels: str = ""
+    google_service_account_json: str = Field(default="", alias="GOOGLE_SERVICE_ACCOUNT_JSON")
+    google_sheets_spreadsheet_id: str = Field(default="", alias="GOOGLE_SHEETS_SPREADSHEET_ID")
+    github_token: str = Field(default="", alias="GITHUB_TOKEN")
+    figma_access_token: str = Field(default="", alias="FIGMA_ACCESS_TOKEN")
+    calendly_api_key: str = Field(default="", alias="CALENDLY_API_KEY")
+    notion_token: str = ""
+
+    # Server
+    host: str = Field(default="0.0.0.0", alias="HOST")
+    port: int = Field(default=8000, alias="PORT")
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production environment."""
+        return self.app_env in ("production", "prod")
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get cached settings instance."""
+    return Settings()
+
+
+settings = get_settings()

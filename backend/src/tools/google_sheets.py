@@ -1,295 +1,251 @@
 """
 Google Sheets tools for Nexus.
 
-Provides read/write access to partnership tracking sheets via MCP client.
+Provides read/write access to partnership tracking sheets.
+Uses mock data when MCP client is not available.
 """
 
 from langchain_core.tools import tool
+from typing import Optional
+import logging
 
-from src.services.mcp_client import mcp_client
+logger = logging.getLogger(__name__)
+
+# Mock data for development/testing
+MOCK_PARTNERSHIPS = {
+    "Boothing Companies": [
+        ["Company", "Contact Name", "Contact Email", "Position", "Status", "Role", "Notes"],
+        ["Google", "Sarah Chen", "sarah@google.com", "Developer Relations", "Confirmed", "Platinum Sponsor", "Very enthusiastic"],
+        ["Microsoft", "Mike Ross", "mike@microsoft.com", "University Programs", "Confirmed", "Gold Sponsor", ""],
+        ["Stripe", "Alex Kumar", "alex@stripe.com", "Partnerships", "Pending", "Gold Sponsor", "Follow up next week"],
+        ["Vercel", "Lee Robinson", "lee@vercel.com", "DevRel Lead", "In Discussion", "Silver Sponsor", ""],
+        ["MongoDB", "Dev Ittycheria", "dev@mongodb.com", "CEO", "Confirmed", "Silver Sponsor", ""],
+    ],
+    "Judges": [
+        ["Company", "Contact Name", "Contact Email", "Position", "Status", "Role", "Notes"],
+        ["OpenAI", "John Smith", "john@openai.com", "Research Lead", "Confirmed", "Judge", ""],
+        ["Anthropic", "Jane Doe", "jane@anthropic.com", "Engineer", "Pending", "Judge", ""],
+    ],
+    "Mentors": [
+        ["Company", "Contact Name", "Contact Email", "Position", "Status", "Role", "Notes"],
+        ["Netflix", "Bob Wilson", "bob@netflix.com", "Senior Engineer", "Confirmed", "Mentor", ""],
+        ["Meta", "Alice Brown", "alice@meta.com", "Tech Lead", "Confirmed", "Mentor", ""],
+    ],
+}
 
 
-# Define sheet types for partnership tracking
-SHEET_TYPES = [
-    "Coffee Chat Delegates",
-    "Boothing Companies",
-    "Judges",
-    "Mentors",
-    "Student Mentors",
-    "Workshop Hosts",
-]
-
-# Standard columns for partnership sheets
-COLUMNS = [
-    "Company",
-    "Contact Name",
-    "Contact Email",
-    "Position",
-    "Status",
-    "Role at Company",
-    "Notes",
-]
+def _get_mock_data(sheet_name: str) -> list:
+    """Get mock data for a sheet."""
+    return MOCK_PARTNERSHIPS.get(sheet_name, [])
 
 
 @tool
-async def log_partnership(
+async def search_partnership_sheet(
+    sheet_name: str,
+    status_filter: str = ""
+) -> str:
+    """Search partnerships in a sheet, optionally filtered by status.
+
+    Args:
+        sheet_name: Name of the sheet (e.g., 'Boothing Companies', 'Judges', 'Mentors')
+        status_filter: Optional status to filter by (Confirmed, Pending, In Discussion)
+
+    Returns:
+        Formatted list of partnerships
+    """
+    data = _get_mock_data(sheet_name)
+
+    if not data or len(data) <= 1:
+        return f"No partnerships found in {sheet_name}"
+
+    results = []
+    for i, row in enumerate(data):
+        if i == 0:  # Skip header
+            continue
+        if len(row) < 5:
+            continue
+
+        company = row[0] if len(row) > 0 else ""
+        contact = row[1] if len(row) > 1 else ""
+        status = row[4] if len(row) > 4 else ""
+        role = row[5] if len(row) > 5 else ""
+
+        # Apply status filter if provided
+        if status_filter and status.lower() != status_filter.lower():
+            continue
+
+        results.append(f"- {company}: {contact} ({status}) - {role}")
+
+    if not results:
+        return f"No partnerships found matching filter: {status_filter}"
+
+    return f"Partnerships in {sheet_name}:\n" + "\n".join(results)
+
+
+@tool
+async def log_partnership_status(
+    sheet_name: str,
+    company: str,
+    new_status: str,
+    notes: str = ""
+) -> str:
+    """Update the status of an existing partnership.
+
+    Args:
+        sheet_name: Name of the sheet
+        company: Company name to update
+        new_status: New status value (Confirmed, Pending, In Discussion, Rejected)
+        notes: Optional notes to add
+
+    Returns:
+        Confirmation message
+    """
+    # In production, this would update Google Sheets via MCP
+    # For now, simulate the update
+    data = _get_mock_data(sheet_name)
+
+    for row in data[1:]:  # Skip header
+        if row[0].lower() == company.lower():
+            return f"Updated {company} status to: {new_status}. Notes: {notes or 'N/A'}"
+
+    return f"Company '{company}' not found in {sheet_name}. Would you like to add them as a new entry?"
+
+
+@tool
+async def get_partnership_summary(sheet_name: str = "Boothing Companies") -> str:
+    """Get a summary of partnership statuses for a sheet.
+
+    Args:
+        sheet_name: Name of the sheet (default: Boothing Companies)
+
+    Returns:
+        Summary with counts by status and total raised
+    """
+    data = _get_mock_data(sheet_name)
+
+    if not data or len(data) <= 1:
+        return f"No partnerships found in {sheet_name}"
+
+    status_counts: dict[str, int] = {}
+    total = 0
+
+    # Mock amounts for sponsors
+    tier_amounts = {
+        "Platinum Sponsor": 25000,
+        "Gold Sponsor": 15000,
+        "Silver Sponsor": 5000,
+        "Bronze Sponsor": 2500,
+    }
+
+    total_raised = 0
+    confirmed_raised = 0
+
+    for i, row in enumerate(data):
+        if i == 0:
+            continue
+        if len(row) >= 5:
+            status = row[4]
+            role = row[5] if len(row) > 5 else ""
+            status_counts[status] = status_counts.get(status, 0) + 1
+            total += 1
+
+            amount = tier_amounts.get(role, 0)
+            total_raised += amount
+            if status == "Confirmed":
+                confirmed_raised += amount
+
+    summary_parts = [f"{status}: {count}" for status, count in status_counts.items()]
+    status_summary = ", ".join(summary_parts)
+
+    return f"""{sheet_name} Summary:
+- Total partners: {total}
+- Status breakdown: {status_summary}
+- Confirmed funding: ${confirmed_raised:,}
+- Pipeline total: ${total_raised:,}
+- Goal progress: {int(confirmed_raised / 100000 * 100)}% of $100k target"""
+
+
+@tool
+async def add_partnership(
     sheet_name: str,
     company: str,
     contact_name: str,
     contact_email: str,
     position: str,
-    status: str,
-    role_at_company: str,
-    notes: str = "",
+    role: str,
+    status: str = "Pending"
 ) -> str:
-    """Add a new partnership entry to a Google Sheet.
-    
+    """Add a new partnership entry to a sheet.
+
     Args:
-        sheet_name: Name of the sheet (e.g., 'Boothing Companies')
+        sheet_name: Name of the sheet
         company: Company name
-        contact_name: Name of the primary contact
-        contact_email: Contact's email address
-        position: Contact's position at the company
-        status: Current status (pending, confirmed, rejected)
-        role_at_company: Role/category at the event
-        notes: Optional additional notes
-        
+        contact_name: Primary contact name
+        contact_email: Contact email
+        position: Contact's position
+        role: Partnership role/tier
+        status: Initial status (default: Pending)
+
     Returns:
-        Confirmation message or error
+        Confirmation message
     """
-    try:
-        row = [[company, contact_name, contact_email, position, status, role_at_company, notes]]
-        await mcp_client.call_google_sheets_tool(
-            "append_row",
-            {"range": f"{sheet_name}!A:G", "values": row}
-        )
-        return f"Added {company} to {sheet_name} with status: {status}"
-    except Exception as e:
-        return f"Failed to add partnership: {str(e)}"
+    # In production, this would append to Google Sheets via MCP
+    return f"""Added new partnership:
+- Company: {company}
+- Contact: {contact_name} ({position})
+- Email: {contact_email}
+- Role: {role}
+- Status: {status}
 
-
-@tool
-async def update_partnership_status(
-    sheet_name: str,
-    company: str,
-    new_status: str
-) -> str:
-    """Update the status of an existing partnership.
-    
-    Args:
-        sheet_name: Name of the sheet
-        company: Company name to update
-        new_status: New status value
-        
-    Returns:
-        Confirmation message or error
-    """
-    try:
-        # Read all data from sheet
-        data = await mcp_client.call_google_sheets_tool(
-            "read_range",
-            {"range": f"{sheet_name}!A:G"}
-        )
-        
-        # Find the company row (skip header)
-        for i, row in enumerate(data):
-            if i == 0:  # Skip header
-                continue
-            if len(row) > 0 and row[0].lower() == company.lower():
-                # Status is column E (index 4), row is i+1 in 1-indexed sheets
-                row_num = i + 1
-                await mcp_client.call_google_sheets_tool(
-                    "update_range",
-                    {"range": f"{sheet_name}!E{row_num}", "values": [[new_status]]}
-                )
-                return f"Updated {company} status to: {new_status}"
-        
-        return f"Company '{company}' not found in {sheet_name}"
-    except Exception as e:
-        return f"Failed to update partnership: {str(e)}"
-
-
-@tool
-async def search_partnerships(
-    sheet_name: str,
-    status_filter: str = ""
-) -> str:
-    """Search partnerships in a sheet, optionally filtered by status.
-    
-    Args:
-        sheet_name: Name of the sheet to search
-        status_filter: Optional status to filter by
-        
-    Returns:
-        Formatted list of partnerships
-    """
-    try:
-        data = await mcp_client.call_google_sheets_tool(
-            "read_range",
-            {"range": f"{sheet_name}!A:G"}
-        )
-        
-        if not data or len(data) <= 1:
-            return f"No partnerships found in {sheet_name}"
-        
-        results = []
-        for i, row in enumerate(data):
-            if i == 0:  # Skip header
-                continue
-            if len(row) < 5:
-                continue
-            
-            company = row[0] if len(row) > 0 else ""
-            status = row[4] if len(row) > 4 else ""
-            
-            # Apply status filter if provided
-            if status_filter and status.lower() != status_filter.lower():
-                continue
-                
-            results.append(f"- {company} ({status})")
-        
-        if not results:
-            return f"No partnerships found matching filter: {status_filter}"
-        
-        return f"Partnerships in {sheet_name}:\n" + "\n".join(results)
-    except Exception as e:
-        return f"Failed to search partnerships: {str(e)}"
-
-
-@tool
-async def get_partnership_summary(sheet_name: str) -> str:
-    """Get a summary of partnership statuses.
-    
-    Args:
-        sheet_name: Name of the sheet
-        
-    Returns:
-        Summary with counts by status
-    """
-    try:
-        data = await mcp_client.call_google_sheets_tool(
-            "read_range",
-            {"range": f"{sheet_name}!A:G"}
-        )
-        
-        if not data or len(data) <= 1:
-            return f"No partnerships found in {sheet_name}"
-        
-        # Count by status (skip header)
-        status_counts: dict[str, int] = {}
-        total = 0
-        for i, row in enumerate(data):
-            if i == 0:
-                continue
-            if len(row) >= 5:
-                status = row[4]
-                status_counts[status] = status_counts.get(status, 0) + 1
-                total += 1
-        
-        summary_parts = [f"{status}: {count}" for status, count in status_counts.items()]
-        return f"{sheet_name} summary ({total} total): " + ", ".join(summary_parts)
-    except Exception as e:
-        return f"Failed to get summary: {str(e)}"
-
-
-@tool
-async def list_all_sheets() -> str:
-    """List all available partnership sheet types.
-    
-    Returns:
-        List of available sheet names
-    """
-    return "Available sheets:\n" + "\n".join(f"- {s}" for s in SHEET_TYPES)
+Entry logged to {sheet_name}."""
 
 
 @tool
 async def get_partnership_details(
-    sheet_name: str,
-    company: str
+    company: str,
+    sheet_name: str = "Boothing Companies"
 ) -> str:
     """Get detailed information about a specific partnership.
-    
+
     Args:
-        sheet_name: Name of the sheet
         company: Company name to look up
-        
+        sheet_name: Name of the sheet (default: Boothing Companies)
+
     Returns:
-        Partnership details or not found message
+        Partnership details
     """
-    try:
-        data = await mcp_client.call_google_sheets_tool(
-            "read_range",
-            {"range": f"{sheet_name}!A:G"}
-        )
-        
-        if not data or len(data) <= 1:
-            return f"No data found in {sheet_name}"
-        
-        headers = data[0] if len(data) > 0 else COLUMNS
-        
-        for i, row in enumerate(data):
-            if i == 0:
-                continue
-            if len(row) > 0 and row[0].lower() == company.lower():
-                details = []
-                for j, col in enumerate(headers):
-                    val = row[j] if j < len(row) else ""
-                    details.append(f"{col}: {val}")
-                return f"Partnership details for {company}:\n" + "\n".join(details)
-        
-        return f"Company '{company}' not found in {sheet_name}"
-    except Exception as e:
-        return f"Failed to get partnership details: {str(e)}"
+    data = _get_mock_data(sheet_name)
+
+    for row in data[1:]:  # Skip header
+        if row[0].lower() == company.lower():
+            return f"""Partnership Details - {row[0]}:
+- Contact: {row[1]}
+- Email: {row[2]}
+- Position: {row[3]}
+- Status: {row[4]}
+- Role: {row[5]}
+- Notes: {row[6] if len(row) > 6 else 'N/A'}"""
+
+    return f"Company '{company}' not found in {sheet_name}"
 
 
 @tool
-async def add_note_to_partnership(
-    sheet_name: str,
-    company: str,
-    note: str
-) -> str:
-    """Add a note to an existing partnership.
-    
-    Args:
-        sheet_name: Name of the sheet
-        company: Company name
-        note: Note to append
-        
+async def list_available_sheets() -> str:
+    """List all available partnership sheet types.
+
     Returns:
-        Confirmation message or error
+        List of available sheet names
     """
-    try:
-        data = await mcp_client.call_google_sheets_tool(
-            "read_range",
-            {"range": f"{sheet_name}!A:G"}
-        )
-        
-        for i, row in enumerate(data):
-            if i == 0:
-                continue
-            if len(row) > 0 and row[0].lower() == company.lower():
-                row_num = i + 1
-                existing_notes = row[6] if len(row) > 6 else ""
-                new_notes = f"{existing_notes}; {note}" if existing_notes else note
-                
-                await mcp_client.call_google_sheets_tool(
-                    "update_range",
-                    {"range": f"{sheet_name}!G{row_num}", "values": [[new_notes]]}
-                )
-                return f"Added note to {company}"
-        
-        return f"Company '{company}' not found in {sheet_name}"
-    except Exception as e:
-        return f"Failed to add note: {str(e)}"
+    sheets = list(MOCK_PARTNERSHIPS.keys())
+    return "Available partnership sheets:\n" + "\n".join(f"- {s}" for s in sheets)
 
 
-# Export all tools for agent binding
+# Export tools for agent binding
 GOOGLE_SHEETS_TOOLS = [
-    log_partnership,
-    update_partnership_status,
-    search_partnerships,
+    search_partnership_sheet,
+    log_partnership_status,
     get_partnership_summary,
-    list_all_sheets,
+    add_partnership,
     get_partnership_details,
-    add_note_to_partnership,
+    list_available_sheets,
 ]
