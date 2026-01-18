@@ -97,6 +97,29 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="search_database",
+            description="Search a Notion database for items matching a query",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "database_id": {
+                        "type": "string",
+                        "description": "Database ID to search"
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Search query text"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Max results to return",
+                        "default": 10
+                    }
+                },
+                "required": ["database_id", "query"]
+            }
+        ),
+        Tool(
             name="update_timeline_item",
             description="Update a timeline item's properties",
             inputSchema={
@@ -198,6 +221,57 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
                 return [TextContent(
                     type="text",
                     text=json.dumps({"items": items, "count": len(items)})
+                )]
+            
+            elif name == "search_database":
+                db_id = arguments.get("database_id")
+                query = arguments.get("query", "")
+                limit = min(arguments.get("limit", 10), 100)
+                
+                if not db_id:
+                    return [TextContent(
+                        type="text",
+                        text=json.dumps({"error": "database_id is required"})
+                    )]
+                
+                # Notion doesn't have a direct text search in database queries,
+                # so we'll query all items and filter locally
+                body: dict[str, Any] = {"page_size": 100}
+                
+                response = await client.post(
+                    f"{API_BASE}/databases/{db_id}/query",
+                    headers=headers,
+                    json=body
+                )
+                response.raise_for_status()
+                data = response.json()
+                
+                # Extract and search through items
+                query_lower = query.lower()
+                matches = []
+                
+                for page in data.get("results", []):
+                    props = page.get("properties", {})
+                    item = {"id": page["id"], "url": page.get("url", "")}
+                    
+                    # Extract all text properties
+                    match_found = False
+                    for prop_name, prop_value in props.items():
+                        text_value = extract_text_from_property(prop_value)
+                        item[prop_name] = text_value
+                        
+                        # Check if query matches this property
+                        if text_value and query_lower in text_value.lower():
+                            match_found = True
+                    
+                    if match_found:
+                        matches.append(item)
+                        if len(matches) >= limit:
+                            break
+                
+                return [TextContent(
+                    type="text",
+                    text=json.dumps({"items": matches, "count": len(matches), "query": query})
                 )]
             
             elif name == "update_timeline_item":
