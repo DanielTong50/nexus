@@ -21,6 +21,15 @@ const logos = [
     { name: "Slack", src: "/photos/slack.png" },
     { name: "Notion", src: "/photos/notion.png" },
     { name: "Google Sheets", src: "/photos/googlesheets.png" },
+    { name: "Apollo", src: "/photos/apollo.png" },
+    { name: "Google Meet", src: "/photos/googlemeet.png" },
+    { name: "Microsoft Teams", src: "/photos/microsoftteams.png" },
+    { name: "PowerPoint", src: "/photos/powerpoint.png" },
+    { name: "Figma", src: "/photos/figma.png" },
+    { name: "VS Code", src: "/photos/vscode.png" },
+    { name: "Excel", src: "/photos/excel.png" },
+    { name: "Discord", src: "/photos/discord.png" },
+    { name: "LinkedIn", src: "/photos/linkedin.png" },
 ];
 
 export default function LandingPage() {
@@ -42,21 +51,24 @@ export default function LandingPage() {
                     <Hero />
 
                     {/* Logo Marquee */}
-                    <div className="py-12 overflow-hidden">
-                        <p className="text-center text-slate-400 text-2xl mb-8 text-white">Trusted integrations with your favorite tools...</p>
-                        <Marquee className="[--duration:6s]">
-                            {logos.map((logo, index) => (
-                                <div key={index} className="mx-8 flex items-center justify-center w-16 h-16">
-                                    <Image
-                                        src={logo.src}
-                                        alt={logo.name}
-                                        width={64}
-                                        height={64}
-                                        className="opacity-70 hover:opacity-100 transition-opacity grayscale hover:grayscale-0 object-contain w-full h-full"
-                                    />
-                                </div>
-                            ))}
-                        </Marquee>
+                    <div className="py-16 overflow-hidden">
+                        <p className="text-center text-white/70 text-lg mb-10 tracking-wide">Trusted Integrations with all your apps</p>
+                        <div className="relative">
+                            <div className="absolute inset-0 bg-white/5 backdrop-blur-sm border-y border-white/10" />
+                            <Marquee className="[--duration:20s] py-6 relative z-10">
+                                {logos.map((logo, index) => (
+                                    <div key={index} className="mx-8 flex items-center justify-center w-16 h-16">
+                                        <Image
+                                            src={logo.src}
+                                            alt={logo.name}
+                                            width={64}
+                                            height={64}
+                                            className="opacity-80 hover:opacity-100 grayscale hover:grayscale-0 transition-all object-contain w-full h-full"
+                                        />
+                                    </div>
+                                ))}
+                            </Marquee>
+                        </div>
                     </div>
                 </GravityStarsBackground>
 
