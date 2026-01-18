@@ -5,9 +5,9 @@ import { useRef, useEffect, useState } from "react";
 
 const STATS = [
     { value: 10, suffix: "+", label: "Student Organizations" },
-    { value: 50, suffix: "K+", label: "Events Powered" },
-    { value: 2, suffix: "M+", label: "Sponsorship Dollars Raised" },
-    { value: 99, suffix: "%", label: "Customer Satisfaction" },
+    { value: 40, suffix: "%", label: "Projects Efficiency Growth" },
+    { value: 30, suffix: "+", label: "Expected Supporting Tools" },
+    { value: 95, suffix: "%", label: "User Satisfaction" },
 ];
 
 function AnimatedCounter({ value, suffix }: { value: number; suffix: string }) {

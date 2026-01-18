@@ -8,7 +8,7 @@ const TEAM_MEMBERS = [
         name: "Chris Lee",
         role: "Frontend Developer",
         school: "UBC",
-        image: "/photos/chrislee.jpg", // Replace with actual image path
+        image: "/photos/chrislee.jpg",
     },
     {
         name: "Darius Alexander",
