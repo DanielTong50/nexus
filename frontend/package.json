@@ -26,6 +26,7 @@
     "date-fns": "^4.1.0",
     "framer-motion": "^12.26.2",
     "lucide-react": "^0.562.0",
+    "motion": "^12.26.2",
     "next": "14.2.35",
     "react": "^18",
     "react-day-picker": "^9.13.0",

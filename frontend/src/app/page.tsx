@@ -7,10 +7,11 @@ import { FAQ } from "@/components/landing/FAQ";
 import { CTA } from "@/components/landing/CTA";
 import { Footer } from "@/components/landing/Footer";
 import { LandingNavbar } from "@/components/landing/LandingNavbar";
+import { GravityStarsBackground } from "@/components/animate-ui/components/backgrounds/gravity-stars";
 
 export default function LandingPage() {
     return (
-        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+        <GravityStarsBackground className="min-h-screen bg-black font-sans text-white">
             <LandingNavbar />
             <Hero />
             <Stats />
@@ -20,6 +21,6 @@ export default function LandingPage() {
             <FAQ />
             <CTA />
             <Footer />
-        </div>
+        </GravityStarsBackground>
     );
 }
