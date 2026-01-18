@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 import {
-    PanelRightClose,
     PanelRight,
 } from "lucide-react";
 
@@ -52,22 +53,17 @@ export default function Shell() {
                         <span className="text-gray-900 font-medium capitalize">{activeView}</span>
                     </nav>
 
-                    <button
-                        onClick={() => setIsAgentPanelOpen(!isAgentPanelOpen)}
-                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                    >
-                        {isAgentPanelOpen ? (
-                            <>
-                                <PanelRightClose className="h-4 w-4" />
-                                <span>Hide Agent</span>
-                            </>
-                        ) : (
-                            <>
-                                <PanelRight className="h-4 w-4" />
-                                <span>Show Agent</span>
-                            </>
-                        )}
-                    </button>
+                    {!isAgentPanelOpen && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsAgentPanelOpen(true)}
+                            className="text-slate-500 hover:text-slate-900 gap-2"
+                        >
+                            <PanelRight className="h-4 w-4" />
+                            <span className="text-xs">Open Agent</span>
+                        </Button>
+                    )}
                 </header>
 
                 {/* Content */}
@@ -78,12 +74,22 @@ export default function Shell() {
                 </ScrollArea>
             </main>
 
-            {/* Agent Panel */}
-            {isAgentPanelOpen && (
-                <aside className="w-[380px] h-full bg-white border-l border-gray-200 flex-shrink-0">
-                    <ChatPanel />
-                </aside>
-            )}
+            {/* RIGHT PANEL - Agent Intelligence - 380px */}
+            <AnimatePresence>
+                {isAgentPanelOpen && (
+                    <motion.aside
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: 380, opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={{ duration: 0.15, ease: "easeOut" }}
+                        className="h-full bg-white border-l border-slate-200 flex-shrink-0 overflow-hidden"
+                    >
+                        <div className="w-[380px] h-full">
+                            <ChatPanel onClose={() => setIsAgentPanelOpen(false)} />
+                        </div>
+                    </motion.aside>
+                )}
+            </AnimatePresence>
         </div>
     );
 }
