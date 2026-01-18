@@ -30,37 +30,12 @@ export function DemoVideo() {
                     transition={{ duration: 0.5, delay: 0.2 }}
                     className="max-w-4xl mx-auto"
                 >
-                    <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900/50 border border-slate-700">
-                        {/* Placeholder for video */}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                                <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4 hover:bg-white/20 transition-colors cursor-pointer">
-                                    <svg
-                                        className="w-8 h-8 text-white ml-1"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path d="M8 5v14l11-7z" />
-                                    </svg>
-                                </div>
-                                <p className="text-slate-400">Demo video coming soon</p>
-                            </div>
-                        </div>
-
-                        {/* TODO: Replace with actual video embed */}
-                        {/* <video 
-                            src="/demo.mp4" 
-                            controls 
-                            className="w-full h-full object-cover"
-                        /> */}
-
-                        {/* Or YouTube embed */}
-                        {/* <iframe 
-                            src="https://www.youtube.com/embed/YOUR_VIDEO_ID" 
-                            className="w-full h-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                            allowFullScreen
-                        /> */}
+                    <div className="relative rounded-2xl overflow-hidden bg-slate-900/50 border border-slate-700">
+                        <video
+                            src="/photos/demo.mp4"
+                            controls
+                            className="w-full h-auto"
+                        />
                     </div>
                 </motion.div>
             </div>
