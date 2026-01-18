@@ -27,7 +27,7 @@ export function Hero() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.1 }}
-                        className="text-5xl md:text-6xl lg:text-7xl font-bold text-white tracking-tight"
+                        className="text-5xl md:text-6xl lg:text-6xl font-bold text-white tracking-tight"
                     >
                         Deploy the #1
                         <span className="block mt-2 whitespace-nowrap">
@@ -43,7 +43,7 @@ export function Hero() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.2 }}
-                        className="mt-6 text-lg md:text-xl text-slate-300 max-w-xl leading-relaxed"
+                        className="mt-6 text-lg md:text-l text-slate-300 max-w-xl leading-relaxed"
                     >
                         Nexus is an AI-native platform that gives student clubs a full production team.
                         From sponsorships to marketing to logistics — all powered by intelligent agents.
