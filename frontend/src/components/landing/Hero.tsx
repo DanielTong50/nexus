@@ -58,14 +58,16 @@ export function Hero() {
                     >
                         <Link href="/dashboard">
                             <Button size="lg" className="h-12 px-8 text-base bg-white hover:bg-slate-200 text-black shadow-lg">
-                                Start Free Trial
+                                Try it Now!
                                 <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                         </Link>
-                        <Button variant="outline" size="lg" className="h-12 px-8 text-base border-slate-600 bg-transparent text-white hover:bg-slate-800">
-                            <Play className="mr-2 h-4 w-4" />
-                            Watch Demo
-                        </Button>
+                        <Link href="#demo-video">
+                            <Button variant="outline" size="lg" className="h-12 px-8 text-base border-slate-600 bg-transparent text-white hover:bg-slate-800 ">
+                                <Play className="mr-2 h-4 w-4" />
+                                Watch Demo
+                            </Button>
+                        </Link>
                     </motion.div>
 
                 </div>

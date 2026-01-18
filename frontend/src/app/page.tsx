@@ -1,6 +1,8 @@
 import { Hero } from "@/components/landing/Hero";
+import { DemoVideo } from "@/components/landing/DemoVideo";
 import { Features } from "@/components/landing/Features";
 import { HowItWorks } from "@/components/landing/HowItWorks";
+import { MeetTheTeam } from "@/components/landing/MeetTheTeam";
 import { Stats } from "@/components/landing/Stats";
 import { Testimonials } from "@/components/landing/Testimonials";
 import { FAQ } from "@/components/landing/FAQ";
@@ -12,10 +14,10 @@ import { Marquee } from "@/components/ui/marquee";
 import Image from "next/image";
 
 const logos = [
-    { name: "Google Docs", src: "/logos/googledocs.png" },
-    { name: "Slack", src: "/logos/slack.png" },
-    { name: "Notion", src: "/logos/notion.png" },
-    { name: "Google Sheets", src: "/logos/googlesheets.png" },
+    { name: "Google Docs", src: "/photos/googledocs.png" },
+    { name: "Slack", src: "/photos/slack.png" },
+    { name: "Notion", src: "/photos/notion.png" },
+    { name: "Google Sheets", src: "/photos/googlesheets.png" },
 ];
 
 export default function LandingPage() {
@@ -41,13 +43,12 @@ export default function LandingPage() {
                     ))}
                 </Marquee>
             </div>
-
-            <Stats />
-            <Features />
+            <DemoVideo />
             <HowItWorks />
+            <Stats />
             <Testimonials />
+            <MeetTheTeam />
             <FAQ />
-            <CTA />
             <Footer />
         </GravityStarsBackground>
     );
