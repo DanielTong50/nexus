@@ -1,10 +1,46 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 
 export function DemoVideo() {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const sectionRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        const section = sectionRef.current;
+
+        if (!video || !section) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        // Play video when section comes into view
+                        video.play().catch(() => {
+                            // Autoplay may be blocked by browser, ignore error
+                        });
+                    } else {
+                        // Pause video when section leaves view
+                        video.pause();
+                    }
+                });
+            },
+            {
+                threshold: 0.3, // Trigger when 30% of section is visible
+            }
+        );
+
+        observer.observe(section);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+
     return (
-        <section id="demo-video" className="py-24 scroll-mt-28">
+        <section id="demo-video" className="py-24 scroll-mt-28" ref={sectionRef}>
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Section Header */}
                 <motion.div
@@ -32,8 +68,11 @@ export function DemoVideo() {
                 >
                     <div className="relative rounded-2xl overflow-hidden bg-slate-900/50 border border-slate-700">
                         <video
+                            ref={videoRef}
                             src="/photos/demo.mp4"
-                            controls
+                            muted
+                            loop
+                            playsInline
                             className="w-full h-auto"
                         />
                     </div>
