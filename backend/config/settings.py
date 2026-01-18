@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     """Application configuration loaded from environment variables."""
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env"),  # Look in parent (project root) first, then current
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
@@ -35,12 +35,33 @@ class Settings(BaseSettings):
     agent_model: str = "gemini-3.0-flash"
 
     # External Services
+    mcp_enabled: bool = True
     slack_bot_token: str = ""
     slack_signing_secret: str = ""
+    slack_allowed_channels: str = ""  # Comma-separated list of allowed channels
     google_service_account_json: str = ""
+    google_sheets_spreadsheet_id: str = ""
     github_token: str = ""
     figma_access_token: str = ""
     calendly_api_key: str = ""
+    notion_token: str = ""
+
+    # OAuth Credentials (for user-based OAuth flows)
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    slack_oauth_client_id: str = ""
+    slack_oauth_client_secret: str = ""
+    notion_oauth_client_id: str = ""
+    notion_oauth_client_secret: str = ""
+    github_oauth_client_id: str = ""
+    github_oauth_client_secret: str = ""
+    calendly_oauth_client_id: str = ""
+    calendly_oauth_client_secret: str = ""
+    
+    # OAuth Security
+    oauth_redirect_base_url: str = "http://localhost:8000"
+    token_encryption_key: str = ""  
+    oauth_state_secret: str = ""  
 
     # Server
     host: str = "0.0.0.0"

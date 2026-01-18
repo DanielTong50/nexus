@@ -50,7 +50,7 @@ async def close_mongo_connection() -> None:
         logger.info("MongoDB connection closed")
 
 
-def get_database() -> AsyncIOMotorDatabase:
+async def get_database() -> AsyncIOMotorDatabase:
     """Get the database instance.
 
     Returns:
