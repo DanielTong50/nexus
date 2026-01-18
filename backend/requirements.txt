@@ -28,3 +28,12 @@ google-auth-httplib2>=0.2.0
 
 # Redis (optional)
 redis>=5.2.0
+
+# Document Generation
+python-docx>=1.1.0
+
+# MCP (Model Context Protocol)
+mcp>=1.0.0
+
+# GitHub API
+PyGithub>=2.1.0

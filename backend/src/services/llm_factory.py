@@ -15,11 +15,12 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-# Agents that use Vultr (Llama 3.3 70B) - less critical, cost-effective
-VULTR_AGENTS = ["events", "developers"]
+# Agents that use Vultr (Llama 3.3 70B) - currently disabled because Vultr doesn't support tool calling
+# Once Vultr adds tool calling support, these agents can be moved back
+VULTR_AGENTS = []  # ["events", "developers"] - disabled until Vultr supports tools
 
-# Agents that use Gemini - critical operations
-GEMINI_AGENTS = ["partnerships", "marketing", "finance", "classifier"]
+# Agents that use Gemini - all agents need tool calling support
+GEMINI_AGENTS = ["partnerships", "marketing", "finance", "events", "developers", "classifier"]
 
 
 def get_llm_for_agent(
