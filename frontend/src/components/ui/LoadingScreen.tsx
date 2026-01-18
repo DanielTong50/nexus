@@ -14,8 +14,8 @@ export function LoadingScreen({ isClosing = false }: LoadingScreenProps) {
                 initial={{ x: "-100%" }}
                 animate={{ x: isClosing ? "100%" : "0%" }}
                 transition={{
-                    duration: 0.5,
-                    ease: [0.4, 0, 0.2, 1]
+                    duration: 1.2,
+                    ease: [0.16, 1, 0.3, 1]
                 }}
             />
         </div>

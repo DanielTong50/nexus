@@ -28,7 +28,17 @@ export default function LandingPage() {
         <PageTransition loaderDuration={800}>
             <main className="min-h-screen bg-black font-sans text-white">
                 <LandingNavbar />
-                <GravityStarsBackground className="bg-black text-white" movementSpeed={0.5} starsCount={100}>
+                <GravityStarsBackground
+                    className="bg-black text-white"
+                    movementSpeed={0.8}
+                    starsCount={200}
+                    starsSize={2}
+                    starsOpacity={0.5}
+                    mouseInfluence={220}
+                    mouseGravity="repel"
+                    gravityStrength={120}
+                    glowIntensity={20}
+                >
                     <Hero />
 
                     {/* Logo Marquee */}
