@@ -46,7 +46,7 @@ export function LandingNavbar() {
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden md:flex items-center gap-8">
+                    <nav className="hidden md:flex items-center gap-8 pl-20">
                         {NAV_LINKS.map((link) => (
                             <a
                                 key={link.href}

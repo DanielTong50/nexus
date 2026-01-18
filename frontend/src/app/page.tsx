@@ -22,27 +22,30 @@ const logos = [
 
 export default function LandingPage() {
     return (
-        <GravityStarsBackground className="min-h-screen bg-black font-sans text-white">
+        <main className="min-h-screen bg-black font-sans text-white">
             <LandingNavbar />
-            <Hero />
+            <GravityStarsBackground className="bg-black text-white">
+                <Hero />
 
-            {/* Logo Marquee */}
-            <div className="py-12 overflow-hidden">
-                <p className="text-center text-slate-400 text-2xl mb-8 text-white">Trusted integrations with your favorite tools...</p>
-                <Marquee className="[--duration:6s]">
-                    {logos.map((logo, index) => (
-                        <div key={index} className="mx-8 flex items-center justify-center w-16 h-16">
-                            <Image
-                                src={logo.src}
-                                alt={logo.name}
-                                width={64}
-                                height={64}
-                                className="opacity-70 hover:opacity-100 transition-opacity grayscale hover:grayscale-0 object-contain w-full h-full"
-                            />
-                        </div>
-                    ))}
-                </Marquee>
-            </div>
+                {/* Logo Marquee */}
+                <div className="py-12 overflow-hidden">
+                    <p className="text-center text-slate-400 text-2xl mb-8 text-white">Trusted integrations with your favorite tools...</p>
+                    <Marquee className="[--duration:6s]">
+                        {logos.map((logo, index) => (
+                            <div key={index} className="mx-8 flex items-center justify-center w-16 h-16">
+                                <Image
+                                    src={logo.src}
+                                    alt={logo.name}
+                                    width={64}
+                                    height={64}
+                                    className="opacity-70 hover:opacity-100 transition-opacity grayscale hover:grayscale-0 object-contain w-full h-full"
+                                />
+                            </div>
+                        ))}
+                    </Marquee>
+                </div>
+            </GravityStarsBackground>
+
             <DemoVideo />
             <HowItWorks />
             <Stats />
@@ -50,6 +53,6 @@ export default function LandingPage() {
             <MeetTheTeam />
             <FAQ />
             <Footer />
-        </GravityStarsBackground>
+        </main>
     );
 }
