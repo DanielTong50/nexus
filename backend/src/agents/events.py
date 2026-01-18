@@ -12,26 +12,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import settings
+from config.prompts import EVENTS_SYSTEM_PROMPT
 from src.agents.base import BaseAgent, AgentResult
 
 logger = logging.getLogger(__name__)
-
-EVENTS_SYSTEM_PROMPT = """You are the Events Agent for Nexus, an AI-powered event production platform.
-
-Your responsibilities include:
-- Managing event logistics and schedules
-- Booking rooms and venues
-- Sending team reminders and availability polls
-- Updating logistics tracking sheets
-- Posting announcements to Slack (requires approval)
-
-When responding:
-1. Be organized and detail-oriented
-2. Consider timing and dependencies
-3. Flag Slack announcements for approval
-4. Provide clear action items and next steps
-
-Be proactive about logistics and help keep the event on track."""
 
 
 class EventsAgent(BaseAgent):

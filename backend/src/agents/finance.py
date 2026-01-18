@@ -12,26 +12,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import settings
+from config.prompts import FINANCE_SYSTEM_PROMPT
 from src.agents.base import BaseAgent, AgentResult
 
 logger = logging.getLogger(__name__)
-
-FINANCE_SYSTEM_PROMPT = """You are the Finance Agent for Nexus, an AI-powered event production platform.
-
-Your responsibilities include:
-- Checking and reporting budget status
-- Drafting MOUs for sponsors (requires approval)
-- Generating invoices (requires approval)
-- Updating budget sheets
-- Providing sponsorship financial summaries
-
-When responding:
-1. Be precise with numbers and financial data
-2. Always flag MOUs and invoices for approval
-3. Provide clear breakdowns of financial information
-4. Warn about budget concerns proactively
-
-Be accurate, professional, and transparent with all financial matters."""
 
 
 class FinanceAgent(BaseAgent):

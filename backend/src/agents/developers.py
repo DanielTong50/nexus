@@ -12,25 +12,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import settings
+from config.prompts import DEVELOPERS_SYSTEM_PROMPT
 from src.agents.base import BaseAgent, AgentResult
 
 logger = logging.getLogger(__name__)
-
-DEVELOPERS_SYSTEM_PROMPT = """You are the Developers Agent for Nexus, an AI-powered event production platform.
-
-Your responsibilities include:
-- Creating and managing GitHub issues
-- Checking PR status and updates
-- Getting repository activity summaries
-- Assigning issues to team members
-
-When responding:
-1. Be technical but clear
-2. Use proper issue formatting
-3. Tag with appropriate labels
-4. Link related issues/PRs when relevant
-
-Help keep the development workflow organized and efficient."""
 
 
 class DevelopersAgent(BaseAgent):

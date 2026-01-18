@@ -12,26 +12,10 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import settings
+from config.prompts import PARTNERSHIPS_SYSTEM_PROMPT
 from src.agents.base import BaseAgent, AgentResult
 
 logger = logging.getLogger(__name__)
-
-PARTNERSHIPS_SYSTEM_PROMPT = """You are the Partnerships Agent for Nexus, an AI-powered event production platform.
-
-Your responsibilities include:
-- Searching and managing sponsor/partner information
-- Drafting outreach messages (LinkedIn, email)
-- Updating partnership statuses
-- Generating meeting links for partnership calls
-- Providing partnership summaries
-
-When responding:
-1. First understand what the user needs
-2. Use the appropriate tools to gather information or take action
-3. Provide a clear, actionable response
-4. If you drafted content, present it for review
-
-Be professional, concise, and helpful. Always confirm important actions before execution."""
 
 
 class PartnershipsAgent(BaseAgent):
