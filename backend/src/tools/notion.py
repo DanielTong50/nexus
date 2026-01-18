@@ -4,6 +4,8 @@ Notion tools for Nexus.
 Provides timeline database access and updates via MCP.
 """
 
+from typing import Optional
+
 from langchain_core.tools import tool
 
 from src.services.mcp_client import mcp_client
@@ -39,11 +41,15 @@ def get_timeline_database_id() -> str:
 
 
 @tool
-async def get_timeline(status_filter: str = "") -> str:
+async def get_timeline(
+    status_filter: str = "",
+    user_id: Optional[str] = None
+) -> str:
     """Get timeline items from the Notion database.
     
     Args:
         status_filter: Optional status to filter by (e.g., 'In Progress', 'Done')
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Formatted list of timeline items
@@ -57,7 +63,7 @@ async def get_timeline(status_filter: str = "") -> str:
         if status_filter:
             args["filter_status"] = status_filter
         
-        result = await mcp_client.call_notion_tool("query_timeline", args)
+        result = await mcp_client.call_notion_tool("query_timeline", args, user_id=user_id)
         
         if isinstance(result, dict):
             if result.get("error"):
@@ -91,7 +97,8 @@ async def get_timeline(status_filter: str = "") -> str:
 async def update_timeline_item(
     page_id: str,
     status: str = "",
-    date: str = ""
+    date: str = "",
+    user_id: Optional[str] = None
 ) -> str:
     """Update a timeline item's status or date.
     
@@ -99,6 +106,7 @@ async def update_timeline_item(
         page_id: The Notion page ID to update
         status: New status value (e.g., 'In Progress', 'Done')
         date: New date in YYYY-MM-DD format
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Confirmation or error
@@ -113,7 +121,7 @@ async def update_timeline_item(
         if date:
             args["date"] = date
         
-        result = await mcp_client.call_notion_tool("update_timeline_item", args)
+        result = await mcp_client.call_notion_tool("update_timeline_item", args, user_id=user_id)
         
         if isinstance(result, dict):
             if result.get("success"):
@@ -134,7 +142,8 @@ async def update_timeline_item(
 async def create_timeline_item(
     title: str,
     status: str = "",
-    date: str = ""
+    date: str = "",
+    user_id: Optional[str] = None
 ) -> str:
     """Create a new timeline item.
     
@@ -142,6 +151,7 @@ async def create_timeline_item(
         title: Item title
         status: Initial status (e.g., 'Not Started', 'In Progress')
         date: Date in YYYY-MM-DD format
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Confirmation with page URL or error
@@ -157,7 +167,7 @@ async def create_timeline_item(
         if date:
             args["date"] = date
         
-        result = await mcp_client.call_notion_tool("create_timeline_item", args)
+        result = await mcp_client.call_notion_tool("create_timeline_item", args, user_id=user_id)
         
         if isinstance(result, dict):
             if result.get("success"):

@@ -4,6 +4,8 @@ GitHub tools for Nexus.
 Provides issue tracking and repository monitoring via MCP.
 """
 
+from typing import Optional
+
 from langchain_core.tools import tool
 
 from src.services.mcp_client import mcp_client
@@ -29,7 +31,8 @@ async def create_github_issue(
     repo: str,
     title: str,
     description: str,
-    labels: list[str] = []
+    labels: list[str] = [],
+    user_id: Optional[str] = None
 ) -> str:
     """Create a new GitHub issue.
     
@@ -38,6 +41,7 @@ async def create_github_issue(
         title: Issue title
         description: Issue description in markdown
         labels: List of labels to apply
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Issue URL or error message
@@ -50,7 +54,8 @@ async def create_github_issue(
                 "title": title,
                 "body": description,
                 "labels": labels
-            }
+            },
+            user_id=user_id
         )
         
         if isinstance(result, dict) and result.get("success"):
@@ -63,11 +68,15 @@ async def create_github_issue(
 
 
 @tool
-async def check_pr_status(repo: str = "") -> str:
+async def check_pr_status(
+    repo: str = "",
+    user_id: Optional[str] = None
+) -> str:
     """Summarize open pull requests.
     
     Args:
         repo: Repository name (optional, uses default if not provided)
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Summary of open PRs with status
@@ -75,7 +84,8 @@ async def check_pr_status(repo: str = "") -> str:
     try:
         result = await mcp_client.call_github_tool(
             "get_pr_summary",
-            {"repo": repo or get_default_repo()}
+            {"repo": repo or get_default_repo()},
+            user_id=user_id
         )
         
         if isinstance(result, dict):
@@ -101,12 +111,17 @@ async def check_pr_status(repo: str = "") -> str:
 
 
 @tool
-async def get_repo_updates(repo: str = "", days: int = 7) -> str:
+async def get_repo_updates(
+    repo: str = "", 
+    days: int = 7,
+    user_id: Optional[str] = None
+) -> str:
     """Get a list of open issues for a repository.
     
     Args:
         repo: Repository name (optional, uses default)
         days: Not used currently, for future filtering
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Summary of open issues
@@ -114,7 +129,8 @@ async def get_repo_updates(repo: str = "", days: int = 7) -> str:
     try:
         result = await mcp_client.call_github_tool(
             "list_issues",
-            {"repo": repo or get_default_repo(), "limit": 10}
+            {"repo": repo or get_default_repo(), "limit": 10},
+            user_id=user_id
         )
         
         if isinstance(result, dict):
