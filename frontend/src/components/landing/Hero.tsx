@@ -84,7 +84,7 @@ export function Hero() {
                         items={radialNavItems}
                         defaultActiveId={1}
                         autoRotate={true}
-                        autoRotateInterval={1300}
+                        autoRotateInterval={2500}
                         menuButtonConfig={{
                             iconSize: 30,
                             buttonSize: 60,
