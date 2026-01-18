@@ -20,6 +20,13 @@ async def lifespan(app: FastAPI):
     is_connected = await db_service.ping()
     if is_connected:
         logger.info("✅ Connected to MongoDB Atlas")
+
+        # Create database indexes
+        try:
+            await db_service.create_indexes()
+            logger.info("✅ MongoDB indexes created/verified")
+        except Exception as e:
+            logger.error(f"⚠️ Failed to create indexes: {e}")
     else:
         logger.error("❌ Failed to connect to MongoDB Atlas")
 

@@ -13,8 +13,9 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.api.streaming import PENDING_APPROVALS, create_stream_event
+from src.api.streaming import create_stream_event
 from src.models.requests import PendingApproval, StreamEvent
+from src.models.approval import ApprovalDocument
 
 
 @pytest.fixture
@@ -24,11 +25,41 @@ def client():
 
 
 @pytest.fixture
-def clear_approvals():
-    """Clear pending approvals before/after test."""
-    PENDING_APPROVALS.clear()
-    yield
-    PENDING_APPROVALS.clear()
+def mock_approval_repo():
+    """Mock the approval repository for tests."""
+    with patch("src.api.streaming._get_approval_repo") as mock_get_repo, \
+         patch("src.api.routes.get_pending_approval") as mock_get, \
+         patch("src.api.routes.get_all_pending_approvals") as mock_get_all, \
+         patch("src.api.routes.update_approval_status") as mock_update, \
+         patch("src.api.routes.delete_approval") as mock_delete:
+
+        # Storage for mock approvals
+        mock_approvals = {}
+
+        async def get_approval(approval_id):
+            return mock_approvals.get(approval_id)
+
+        async def get_all_approvals():
+            return [a for a in mock_approvals.values() if a.status == "pending"]
+
+        async def update_status(approval_id, status, **kwargs):
+            if approval_id in mock_approvals:
+                mock_approvals[approval_id].status = status
+                return mock_approvals[approval_id]
+            return None
+
+        async def delete(approval_id):
+            if approval_id in mock_approvals:
+                del mock_approvals[approval_id]
+                return True
+            return False
+
+        mock_get.side_effect = get_approval
+        mock_get_all.side_effect = get_all_approvals
+        mock_update.side_effect = update_status
+        mock_delete.side_effect = delete
+
+        yield mock_approvals
 
 
 class TestHealthEndpoints:
@@ -36,7 +67,7 @@ class TestHealthEndpoints:
 
     def test_health_check(self, client):
         """Health endpoint returns healthy status."""
-        response = client.get("/health")
+        response = client.get("/api/health")
         assert response.status_code == 200
         assert response.json()["status"] == "healthy"
 
@@ -173,7 +204,7 @@ class TestCreateStreamEvent:
 class TestApprovalEndpoints:
     """Tests for approval-related endpoints."""
 
-    def test_list_approvals_empty(self, client, clear_approvals):
+    def test_list_approvals_empty(self, client, mock_approval_repo):
         """List approvals returns empty list when none pending."""
         response = client.get("/api/approvals")
 
@@ -182,10 +213,10 @@ class TestApprovalEndpoints:
         assert data["pending"] == []
         assert data["count"] == 0
 
-    def test_list_approvals_with_pending(self, client, clear_approvals):
+    def test_list_approvals_with_pending(self, client, mock_approval_repo):
         """List approvals returns pending items."""
         # Add a pending approval
-        approval = PendingApproval(
+        approval = ApprovalDocument(
             approval_id="test-123",
             request_id="req-1",
             agent_name="finance",
@@ -193,7 +224,7 @@ class TestApprovalEndpoints:
             action_description="Draft MOU for Google",
             action_data={"sponsor": "Google", "amount": 1000},
         )
-        PENDING_APPROVALS["test-123"] = approval
+        mock_approval_repo["test-123"] = approval
 
         response = client.get("/api/approvals")
 
@@ -202,9 +233,9 @@ class TestApprovalEndpoints:
         assert data["count"] == 1
         assert data["pending"][0]["approval_id"] == "test-123"
 
-    def test_get_approval_by_id(self, client, clear_approvals):
+    def test_get_approval_by_id(self, client, mock_approval_repo):
         """Get specific approval by ID."""
-        approval = PendingApproval(
+        approval = ApprovalDocument(
             approval_id="test-456",
             request_id="req-2",
             agent_name="marketing",
@@ -212,7 +243,7 @@ class TestApprovalEndpoints:
             action_description="Schedule post",
             action_data={"content": "Test post"},
         )
-        PENDING_APPROVALS["test-456"] = approval
+        mock_approval_repo["test-456"] = approval
 
         response = client.get("/api/approvals/test-456")
 
@@ -221,14 +252,14 @@ class TestApprovalEndpoints:
         assert data["approval_id"] == "test-456"
         assert data["agent_name"] == "marketing"
 
-    def test_get_approval_not_found(self, client, clear_approvals):
+    def test_get_approval_not_found(self, client, mock_approval_repo):
         """Get approval returns 404 for non-existent ID."""
         response = client.get("/api/approvals/nonexistent")
         assert response.status_code == 404
 
-    def test_approve_action(self, client, clear_approvals):
+    def test_approve_action(self, client, mock_approval_repo):
         """Approve action successfully."""
-        approval = PendingApproval(
+        approval = ApprovalDocument(
             approval_id="approve-test",
             request_id="req-3",
             agent_name="finance",
@@ -236,7 +267,7 @@ class TestApprovalEndpoints:
             action_description="Generate invoice for Google",
             action_data={"sponsor": "Google", "amount": 1000},
         )
-        PENDING_APPROVALS["approve-test"] = approval
+        mock_approval_repo["approve-test"] = approval
 
         response = client.post(
             "/api/approve",
@@ -251,9 +282,9 @@ class TestApprovalEndpoints:
         assert data["status"] == "executed"
         assert "approve-test" in data["approval_id"]
 
-    def test_reject_action(self, client, clear_approvals):
+    def test_reject_action(self, client, mock_approval_repo):
         """Reject action successfully."""
-        approval = PendingApproval(
+        approval = ApprovalDocument(
             approval_id="reject-test",
             request_id="req-4",
             agent_name="events",
@@ -261,7 +292,7 @@ class TestApprovalEndpoints:
             action_description="Post to Slack",
             action_data={"message": "Test"},
         )
-        PENDING_APPROVALS["reject-test"] = approval
+        mock_approval_repo["reject-test"] = approval
 
         response = client.post(
             "/api/approve",
@@ -277,9 +308,9 @@ class TestApprovalEndpoints:
         assert data["status"] == "rejected"
         assert "Not ready yet" in data["message"]
 
-    def test_edit_and_approve(self, client, clear_approvals):
+    def test_edit_and_approve(self, client, mock_approval_repo):
         """Edit action data and approve."""
-        approval = PendingApproval(
+        approval = ApprovalDocument(
             approval_id="edit-test",
             request_id="req-5",
             agent_name="finance",
@@ -287,7 +318,7 @@ class TestApprovalEndpoints:
             action_description="Draft MOU",
             action_data={"amount": 1000},
         )
-        PENDING_APPROVALS["edit-test"] = approval
+        mock_approval_repo["edit-test"] = approval
 
         response = client.post(
             "/api/approve",
@@ -303,7 +334,7 @@ class TestApprovalEndpoints:
         assert data["status"] == "executed"
         assert data["result"]["edits_applied"]["amount"] == 1500
 
-    def test_approve_not_found(self, client, clear_approvals):
+    def test_approve_not_found(self, client, mock_approval_repo):
         """Approve returns 404 for non-existent approval."""
         response = client.post(
             "/api/approve",
@@ -315,9 +346,9 @@ class TestApprovalEndpoints:
 
         assert response.status_code == 404
 
-    def test_approve_already_processed(self, client, clear_approvals):
+    def test_approve_already_processed(self, client, mock_approval_repo):
         """Cannot approve already processed approval."""
-        approval = PendingApproval(
+        approval = ApprovalDocument(
             approval_id="already-done",
             request_id="req-6",
             agent_name="finance",
@@ -326,7 +357,7 @@ class TestApprovalEndpoints:
             action_data={},
             status="approved",
         )
-        PENDING_APPROVALS["already-done"] = approval
+        mock_approval_repo["already-done"] = approval
 
         response = client.post(
             "/api/approve",
@@ -338,9 +369,9 @@ class TestApprovalEndpoints:
 
         assert response.status_code == 400
 
-    def test_cancel_approval(self, client, clear_approvals):
+    def test_cancel_approval(self, client, mock_approval_repo):
         """Cancel/delete pending approval."""
-        approval = PendingApproval(
+        approval = ApprovalDocument(
             approval_id="cancel-test",
             request_id="req-7",
             agent_name="marketing",
@@ -348,12 +379,12 @@ class TestApprovalEndpoints:
             action_description="Test",
             action_data={},
         )
-        PENDING_APPROVALS["cancel-test"] = approval
+        mock_approval_repo["cancel-test"] = approval
 
         response = client.delete("/api/approvals/cancel-test")
 
         assert response.status_code == 200
-        assert "cancel-test" not in PENDING_APPROVALS
+        assert "cancel-test" not in mock_approval_repo
 
 
 class TestAgentsEndpoint:

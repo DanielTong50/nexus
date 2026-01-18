@@ -24,7 +24,7 @@ from src.api.streaming import (
     get_pending_approval,
     get_all_pending_approvals,
     update_approval_status,
-    PENDING_APPROVALS,
+    delete_approval,
 )
 from src.graph.workflow import run_agents_parallel, graph
 from src.graph.classifier import classify_request
@@ -36,6 +36,7 @@ from src.models.requests import (
     ApprovalResponse,
     ApprovalListResponse,
     ErrorResponse,
+    PendingApproval,
 )
 from src.models.state import GraphState
 
@@ -182,7 +183,7 @@ async def process_approval(request: ApprovalRequest) -> ApprovalResponse:
     """
     logger.info(f"Processing approval {request.approval_id}: {request.action}")
 
-    approval = get_pending_approval(request.approval_id)
+    approval = await get_pending_approval(request.approval_id)
 
     if not approval:
         raise HTTPException(
@@ -199,25 +200,31 @@ async def process_approval(request: ApprovalRequest) -> ApprovalResponse:
     try:
         if request.action == "approve":
             # Execute the approved action
-            update_approval_status(request.approval_id, "approved")
-
-            # TODO: Actually execute the action (call the tool)
-            # For now, just mark as executed
-            result = {
+            execution_result = {
                 "executed": True,
                 "action_type": approval.action_type,
                 "message": f"Action '{approval.action_type}' executed successfully",
             }
 
+            await update_approval_status(
+                request.approval_id,
+                "executed",
+                execution_result=execution_result,
+            )
+
             return ApprovalResponse(
                 approval_id=request.approval_id,
                 status="executed",
-                message=f"Action approved and executed",
-                result=result,
+                message="Action approved and executed",
+                result=execution_result,
             )
 
         elif request.action == "reject":
-            update_approval_status(request.approval_id, "rejected")
+            await update_approval_status(
+                request.approval_id,
+                "rejected",
+                reason=request.reason,
+            )
 
             return ApprovalResponse(
                 approval_id=request.approval_id,
@@ -232,26 +239,31 @@ async def process_approval(request: ApprovalRequest) -> ApprovalResponse:
                     detail="Edits required for 'edit' action",
                 )
 
-            # Update the action data with edits
-            approval.action_data.update(request.edits)
-            update_approval_status(request.approval_id, "approved")
-
-            result = {
+            execution_result = {
                 "executed": True,
                 "action_type": approval.action_type,
                 "edits_applied": request.edits,
             }
 
+            await update_approval_status(
+                request.approval_id,
+                "executed",
+                edits=request.edits,
+                execution_result=execution_result,
+            )
+
             return ApprovalResponse(
                 approval_id=request.approval_id,
                 status="executed",
                 message="Action edited and executed",
-                result=result,
+                result=execution_result,
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Approval processing error: {e}")
-        update_approval_status(request.approval_id, "failed")
+        await update_approval_status(request.approval_id, "failed")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -262,10 +274,25 @@ async def list_approvals() -> ApprovalListResponse:
     Returns:
         ApprovalListResponse with pending approvals
     """
-    pending = get_all_pending_approvals()
+    pending = await get_all_pending_approvals()
+    # Convert ApprovalDocument to PendingApproval for response compatibility
+    pending_approvals = [
+        PendingApproval(
+            approval_id=a.approval_id,
+            request_id=a.request_id,
+            agent_name=a.agent_name,
+            action_type=a.action_type,
+            action_description=a.action_description,
+            action_data=a.action_data,
+            created_at=a.created_at,
+            expires_at=a.expires_at,
+            status=a.status,
+        )
+        for a in pending
+    ]
     return ApprovalListResponse(
-        pending=pending,
-        count=len(pending),
+        pending=pending_approvals,
+        count=len(pending_approvals),
     )
 
 
@@ -277,9 +304,9 @@ async def get_approval(approval_id: str):
         approval_id: ID of the approval to retrieve
 
     Returns:
-        PendingApproval details
+        Approval details
     """
-    approval = get_pending_approval(approval_id)
+    approval = await get_pending_approval(approval_id)
     if not approval:
         raise HTTPException(
             status_code=404,
@@ -298,13 +325,13 @@ async def cancel_approval(approval_id: str):
     Returns:
         Confirmation message
     """
-    if approval_id not in PENDING_APPROVALS:
+    deleted = await delete_approval(approval_id)
+    if not deleted:
         raise HTTPException(
             status_code=404,
             detail=f"Approval {approval_id} not found",
         )
 
-    del PENDING_APPROVALS[approval_id]
     return {"message": f"Approval {approval_id} cancelled"}
 
 
@@ -655,4 +682,57 @@ async def get_developers_data() -> dict:
             {"type": "commit", "message": "docs: Update README", "time": "1 day ago"},
             {"type": "commit", "message": "refactor: Clean up API routes", "time": "today"},
         ],
+    }
+
+
+# History endpoints
+
+@router.get("/history/{request_id}")
+async def get_request_history(request_id: str) -> dict:
+    """Get the full history of a specific request.
+
+    Args:
+        request_id: The request ID to look up
+
+    Returns:
+        Full request history including messages and agent executions
+    """
+    from src.services.database import db_service
+    from src.repositories.chat_history_repository import ChatHistoryRepository
+
+    history_repo = ChatHistoryRepository(db_service.db)
+    history = await history_repo.get_full_history(request_id)
+
+    if not history.get("request"):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Request {request_id} not found",
+        )
+
+    return history
+
+
+@router.get("/history")
+async def list_recent_requests(
+    limit: int = Query(default=50, le=100, description="Maximum number of requests"),
+    status: Optional[str] = Query(default=None, description="Filter by status"),
+) -> dict:
+    """List recent requests.
+
+    Args:
+        limit: Maximum number of requests to return
+        status: Optional status filter
+
+    Returns:
+        List of recent requests
+    """
+    from src.services.database import db_service
+    from src.repositories.chat_history_repository import ChatHistoryRepository
+
+    history_repo = ChatHistoryRepository(db_service.db)
+    requests = await history_repo.requests.get_recent_requests(limit=limit, status=status)
+
+    return {
+        "requests": [r.model_dump() for r in requests],
+        "count": len(requests),
     }
