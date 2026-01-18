@@ -40,13 +40,26 @@ class StreamEvent(BaseModel):
     """Model for SSE stream events."""
 
     event_type: Literal[
+        # Legacy classification/routing events
         "classification",
         "routing",
+        # Agent-level events
         "agent_start",
         "agent_update",
         "agent_tool_call",
         "agent_complete",
         "agent_error",
+        # Task-based orchestration events (Phase 3)
+        "planning",
+        "task_plan",
+        "orchestration_start",
+        "task_start",
+        "task_complete",
+        "task_failed",
+        "task_error",
+        "task_approval_required",
+        "orchestration_complete",
+        # Approval and completion events
         "approval_required",
         "complete",
         "error",

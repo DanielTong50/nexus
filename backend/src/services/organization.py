@@ -190,39 +190,44 @@ class OrganizationService:
     
     # Convenience methods for resolving references
     
-    async def resolve_channel(
+    async def get_channel(
         self,
-        reference: str,
+        channel_key: str,
         org_id: str = DEFAULT_ORG_ID
     ) -> str:
-        """Resolve a channel reference to actual Slack channel.
+        """Get a Slack channel by key name.
         
         Args:
-            reference: User's channel reference
+            channel_key: Channel key (e.g., "partnerships", "marketing")
             org_id: Organization identifier
             
         Returns:
-            Actual Slack channel name
+            Actual Slack channel name (e.g., "#partnerships")
         """
         config = await self.get_config(org_id)
-        return config.slack_channels.resolve(reference)
+        channels = config.slack_channels.as_dict()
+        return channels.get(channel_key, f"#{channel_key}")
     
-    async def resolve_data_source(
+    async def get_data_source(
         self,
-        reference: str,
+        source_type: str,
+        source_key: str,
         org_id: str = DEFAULT_ORG_ID
     ) -> str:
-        """Resolve a data source reference to actual name.
+        """Get a data source name by type and key.
         
         Args:
-            reference: User's data source reference
+            source_type: Type of source ("sheets", "notion", "mongodb")
+            source_key: Key within that type
             org_id: Organization identifier
             
         Returns:
             Actual data source name
         """
         config = await self.get_config(org_id)
-        return config.data_sources.resolve(reference)
+        sources = config.data_sources.as_dict()
+        type_sources = sources.get(source_type, {})
+        return type_sources.get(source_key, source_key)
     
     async def get_prompt_context(
         self,
@@ -238,6 +243,24 @@ class OrganizationService:
         """
         config = await self.get_config(org_id)
         return config.get_context_for_prompts()
+    
+    async def get_prompt_context_string(
+        self,
+        org_id: str = DEFAULT_ORG_ID
+    ) -> str:
+        """Get formatted organization context string for LLM prompts.
+        
+        This provides a human-readable format with all available options
+        that the LLM can use when generating structured output.
+        
+        Args:
+            org_id: Organization identifier
+            
+        Returns:
+            Formatted string with organization context
+        """
+        config = await self.get_config(org_id)
+        return config.get_prompt_context_string()
 
 
 # Global service instance

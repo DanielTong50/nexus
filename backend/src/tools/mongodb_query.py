@@ -10,7 +10,7 @@ from typing import Literal, Optional, Any
 from langchain_core.tools import tool
 
 from src.services.database import db_service
-from src.services.organization import org_service, DEFAULT_ORG_ID
+from src.services.organization import DEFAULT_ORG_ID
 
 logger = logging.getLogger(__name__)
 
@@ -45,17 +45,9 @@ async def query_event_data(
         Query results as formatted string
     """
     try:
-        # Get org config for context
-        org_config = await org_service.get_config(org_id)
-        
-        # Resolve collection name from org config if it's an alias
-        resolved_collection = org_config.data_sources.resolve(collection)
-        if resolved_collection == collection:
-            # Not an alias, use as-is
-            resolved_collection = collection
-        
+        # Collection name is used directly - LLM outputs exact names from org context
         # Get the collection
-        coll = db_service.db[resolved_collection]
+        coll = db_service.db[collection]
         
         # Build query
         query = filters or {}
@@ -80,25 +72,25 @@ async def query_event_data(
             if filters:
                 filter_desc = f" matching {filters}"
             
-            return f"Found {count} {resolved_collection}{filter_desc}."
+            return f"Found {count} {collection}{filter_desc}."
         
         elif query_type == "lookup":
             doc = await coll.find_one(query, {"_id": 0})
             
             if doc:
-                return format_document(doc, resolved_collection)
+                return format_document(doc, collection)
             else:
-                return f"No {resolved_collection} found matching the criteria."
+                return f"No {collection} found matching the criteria."
         
         elif query_type == "list" or query_type == "search":
             cursor = coll.find(query, {"_id": 0}).limit(limit)
             docs = await cursor.to_list(length=limit)
             
             if not docs:
-                return f"No {resolved_collection} found."
+                return f"No {collection} found."
             
             # Format results
-            results = [f"Found {len(docs)} {resolved_collection}:"]
+            results = [f"Found {len(docs)} {collection}:"]
             for i, doc in enumerate(docs, 1):
                 summary = summarize_document(doc)
                 results.append(f"{i}. {summary}")
@@ -136,19 +128,14 @@ async def get_collection_stats(
         Collection statistics
     """
     try:
-        # Resolve collection name
-        org_config = await org_service.get_config(org_id)
-        resolved_collection = org_config.data_sources.resolve(collection)
-        if resolved_collection == collection:
-            resolved_collection = collection
-        
-        coll = db_service.db[resolved_collection]
+        # Collection name is used directly - LLM outputs exact names from org context
+        coll = db_service.db[collection]
         
         # Get total count
         total = await coll.count_documents({})
         
         if not group_by:
-            return f"Collection '{resolved_collection}' has {total} documents."
+            return f"Collection '{collection}' has {total} documents."
         
         # Get breakdown by field
         pipeline = [
@@ -160,10 +147,10 @@ async def get_collection_stats(
         groups = await cursor.to_list(length=100)
         
         if not groups:
-            return f"Collection '{resolved_collection}' has {total} documents. No grouping data available for '{group_by}'."
+            return f"Collection '{collection}' has {total} documents. No grouping data available for '{group_by}'."
         
         # Format breakdown
-        results = [f"Statistics for '{resolved_collection}' (total: {total}):"]
+        results = [f"Statistics for '{collection}' (total: {total}):"]
         results.append(f"\nBreakdown by {group_by}:")
         
         for group in groups:

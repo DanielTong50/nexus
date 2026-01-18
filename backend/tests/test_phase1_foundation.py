@@ -34,51 +34,31 @@ class TestOrganizationModels:
         assert mapping.events == "#events"
         assert mapping.developers == "#developers"
     
-    def test_slack_channel_resolve_direct(self):
-        """Test resolving direct channel names."""
-        from src.models.organization import SlackChannelMapping
-        
-        mapping = SlackChannelMapping()
-        
-        assert mapping.resolve("partnerships") == "#partnerships"
-        assert mapping.resolve("marketing") == "#marketing"
-    
-    def test_slack_channel_resolve_aliases(self):
-        """Test resolving natural language aliases."""
-        from src.models.organization import SlackChannelMapping
-        
-        mapping = SlackChannelMapping()
-        
-        assert mapping.resolve("partnerships channel") == "#partnerships"
-        assert mapping.resolve("event logistics") == "#events"
-        assert mapping.resolve("event logistics channel") == "#events"
-    
-    def test_slack_channel_resolve_custom(self):
-        """Test custom channel mappings."""
+    def test_slack_channel_as_dict(self):
+        """Test getting channels as dictionary."""
         from src.models.organization import SlackChannelMapping
         
         mapping = SlackChannelMapping(
             partnerships="#biz-partnerships",
             marketing="#biz-marketing",
-            aliases={
-                "sponsor updates": "#biz-partnerships",
-                "content team": "#biz-marketing",
-            }
         )
         
-        assert mapping.resolve("partnerships") == "#biz-partnerships"
-        assert mapping.resolve("sponsor updates") == "#biz-partnerships"
-        assert mapping.resolve("content team") == "#biz-marketing"
+        channels = mapping.as_dict()
+        
+        assert channels["partnerships"] == "#biz-partnerships"
+        assert channels["marketing"] == "#biz-marketing"
+        assert "finance" in channels
     
-    def test_slack_channel_resolve_unknown(self):
-        """Test resolving unknown channel references."""
+    def test_slack_channel_to_prompt_list(self):
+        """Test formatted prompt list output."""
         from src.models.organization import SlackChannelMapping
         
         mapping = SlackChannelMapping()
+        prompt_list = mapping.to_prompt_list()
         
-        # Unknown channels should be returned with # prefix
-        assert mapping.resolve("random-channel") == "#random-channel"
-        assert mapping.resolve("#already-prefixed") == "#already-prefixed"
+        assert "#partnerships" in prompt_list
+        assert "#marketing" in prompt_list
+        assert "partnerships team" in prompt_list
     
     def test_data_source_mapping_defaults(self):
         """Test default data source mappings."""
@@ -91,15 +71,30 @@ class TestOrganizationModels:
         assert mapping.judges == "Judges"
         assert mapping.mentors == "Mentors"
     
-    def test_data_source_resolve_aliases(self):
-        """Test resolving data source aliases."""
+    def test_data_source_as_dict(self):
+        """Test getting data sources as dictionary."""
+        from src.models.organization import DataSourceMapping
+        
+        mapping = DataSourceMapping(
+            boothing_partnerships="Custom Sponsors",
+            delegates_collection="custom_delegates",
+        )
+        
+        sources = mapping.as_dict()
+        
+        assert sources["sheets"]["boothing_partnerships"] == "Custom Sponsors"
+        assert sources["mongodb"]["delegates"] == "custom_delegates"
+    
+    def test_data_source_to_prompt_list(self):
+        """Test formatted prompt list output."""
         from src.models.organization import DataSourceMapping
         
         mapping = DataSourceMapping()
+        prompt_list = mapping.to_prompt_list()
         
-        assert mapping.resolve("boothing partnerships compendium") == "Boothing Companies"
-        assert mapping.resolve("event partnerships compendium") == "Event Sponsors"
-        assert mapping.resolve("partnership compendium") == "Boothing Companies"
+        assert "Boothing Companies" in prompt_list
+        assert "Google Sheets" in prompt_list
+        assert "MongoDB" in prompt_list
     
     def test_event_config_defaults(self):
         """Test default event configuration."""
@@ -152,7 +147,9 @@ class TestOrganizationModels:
         assert context["event_name"] == "TestEvent"
         assert context["sponsorship_goal"] == 50000
         assert "partnerships" in context["channels"]
-        assert "boothing" in context["data_sources"]
+        # Data sources now have nested structure: sheets, notion, mongodb
+        assert "sheets" in context["data_sources"]
+        assert "boothing_partnerships" in context["data_sources"]["sheets"]
     
     def test_create_default_config(self):
         """Test creating a default configuration."""
@@ -455,8 +452,8 @@ class TestOrganizationService:
         _org_cache.clear()
     
     @pytest.mark.asyncio
-    async def test_resolve_channel(self):
-        """Test resolving channel through service."""
+    async def test_get_channel(self):
+        """Test getting channel through service."""
         from src.services.organization import OrganizationService, _org_cache
         from src.models.organization import OrganizationConfig, SlackChannelMapping
         
@@ -468,7 +465,7 @@ class TestOrganizationService:
         )
         
         service = OrganizationService()
-        channel = await service.resolve_channel("partnerships", "test_org")
+        channel = await service.get_channel("partnerships", "test_org")
         
         assert channel == "#test-partnerships"
         
@@ -476,8 +473,8 @@ class TestOrganizationService:
         _org_cache.clear()
     
     @pytest.mark.asyncio
-    async def test_resolve_data_source(self):
-        """Test resolving data source through service."""
+    async def test_get_data_source(self):
+        """Test getting data source through service."""
         from src.services.organization import OrganizationService, _org_cache
         from src.models.organization import OrganizationConfig, DataSourceMapping
         
@@ -489,9 +486,32 @@ class TestOrganizationService:
         )
         
         service = OrganizationService()
-        source = await service.resolve_data_source("boothing partnerships compendium", "test_org")
+        source = await service.get_data_source("sheets", "boothing_partnerships", "test_org")
         
         assert source == "Test Sponsors"
+        
+        # Clean up
+        _org_cache.clear()
+    
+    @pytest.mark.asyncio
+    async def test_get_prompt_context_string(self):
+        """Test getting formatted prompt context string."""
+        from src.services.organization import OrganizationService, _org_cache
+        from src.models.organization import OrganizationConfig, EventConfig
+        
+        # Pre-populate cache
+        _org_cache["test_org"] = OrganizationConfig(
+            org_id="test_org",
+            org_name="Test Org",
+            event=EventConfig(name="TestEvent", sponsorship_goal=50000),
+        )
+        
+        service = OrganizationService()
+        context_str = await service.get_prompt_context_string("test_org")
+        
+        assert "Test Org" in context_str
+        assert "TestEvent" in context_str
+        assert "#partnerships" in context_str
         
         # Clean up
         _org_cache.clear()
@@ -770,10 +790,11 @@ class TestPhase1Integration:
             ),
         )
         
-        # Resolve channel from config
-        channel = org_config.slack_channels.resolve("partnerships channel")
+        # Get channel from config (as LLM would do via prompt context)
+        channels = org_config.slack_channels.as_dict()
+        channel = channels["partnerships"]
         
-        # Use in task
+        # Use in task (LLM outputs exact channel name)
         task = Task(
             id="t1",
             agent="events",
@@ -783,6 +804,32 @@ class TestPhase1Integration:
         )
         
         assert task.parameters["channel"] == "#test-partnerships"
+    
+    def test_org_config_prompt_context_string(self):
+        """Test the formatted prompt context string includes all options."""
+        from src.models.organization import OrganizationConfig, SlackChannelMapping, EventConfig
+        
+        org_config = OrganizationConfig(
+            org_id="test",
+            org_name="Test Org",
+            slack_channels=SlackChannelMapping(
+                partnerships="#custom-partners",
+            ),
+            event=EventConfig(name="TestHack", sponsorship_goal=75000),
+        )
+        
+        context_str = org_config.get_prompt_context_string()
+        
+        # Should include organization info
+        assert "Test Org" in context_str
+        assert "TestHack" in context_str
+        assert "$75,000" in context_str
+        
+        # Should include available channels (for LLM to pick from)
+        assert "#custom-partners" in context_str
+        
+        # Should include data sources
+        assert "Boothing Companies" in context_str
     
     def test_workflow_decomposition_example(self):
         """Test the workflow decomposition from the example prompts."""

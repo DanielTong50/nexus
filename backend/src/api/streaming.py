@@ -2,6 +2,10 @@
 
 This module provides SSE streaming for the chat endpoint, allowing
 the frontend to receive real-time updates as agents execute.
+
+Supports two execution modes:
+1. Legacy mode: Simple classification → parallel agent execution
+2. Task mode: Task planning → dependency-aware orchestrated execution
 """
 
 import asyncio
@@ -15,6 +19,13 @@ from sse_starlette.sse import EventSourceResponse
 
 from src.graph.workflow import run_agents_parallel, AGENT_RUNNERS
 from src.graph.classifier import classify_request
+from src.graph.task_planner import plan_tasks
+from src.graph.task_orchestrator import (
+    TaskOrchestrator,
+    TaskExecutor,
+    TaskEvent,
+    orchestrate_with_events,
+)
 from src.models.requests import ChatRequest, StreamEvent, PendingApproval
 from src.models.approval import ApprovalDocument
 from src.models.state import GraphState, AgentResult
@@ -431,21 +442,246 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
         yield create_stream_event("error", {"error": str(e), "request_id": request_id})
 
 
-def create_event_stream(request: ChatRequest, parallel: bool = True) -> EventSourceResponse:
+def create_event_stream(request: ChatRequest, parallel: bool = True, use_tasks: bool = False) -> EventSourceResponse:
     """Create an SSE response for streaming agent updates.
 
     Args:
         request: The chat request to process
         parallel: Whether to use parallel execution (default: True)
+        use_tasks: Whether to use task-based orchestration (default: False)
 
     Returns:
         EventSourceResponse for SSE streaming
     """
-    generator = generate_events_parallel if parallel else generate_events
+    if use_tasks:
+        generator = generate_events_task_based
+    elif parallel:
+        generator = generate_events_parallel
+    else:
+        generator = generate_events
+    
     return EventSourceResponse(
         generator(request),
         media_type="text/event-stream",
     )
+
+
+async def generate_events_task_based(request: ChatRequest) -> AsyncGenerator[str, None]:
+    """Generate SSE events using task-based orchestration.
+
+    This version:
+    1. Uses the task planner to decompose the request
+    2. Executes tasks with dependency-aware orchestration
+    3. Streams detailed task progress events
+
+    Args:
+        request: The chat request to process
+
+    Yields:
+        SSE event strings in real-time
+    """
+    request_id = request.request_id or str(uuid.uuid4())
+    history_repo = _get_history_repo()
+    approval_repo = _get_approval_repo()
+
+    logger.info(f"Starting task-based stream for request {request_id}")
+
+    state = GraphState(
+        request_id=request_id,
+        user_message=request.message,
+        context=request.context,
+        org_id=request.context.get("org_id", "default") if request.context else "default",
+    )
+
+    try:
+        # Log request start
+        await history_repo.start_request(
+            request_id=request_id,
+            user_message=request.message,
+            event_name=request.event_name,
+            context=request.context,
+        )
+
+        # Step 1: Task Planning
+        yield create_stream_event(
+            "planning",
+            {"message": "Analyzing and planning tasks...", "request_id": request_id},
+        )
+
+        plan_result = await plan_tasks(state)
+        task_plan = plan_result.get("task_plan")
+        target_agents = plan_result.get("target_agents", [])
+
+        if not task_plan or not task_plan.tasks:
+            yield create_stream_event(
+                "routing",
+                {
+                    "agents": [],
+                    "message": "No tasks were generated for this request",
+                },
+            )
+            await history_repo.complete_request(request_id, completed_agents=[])
+            yield create_stream_event("complete", {"message": "No tasks needed", "results": []})
+            return
+
+        # Emit task plan event with breakdown
+        yield create_stream_event(
+            "task_plan",
+            {
+                "plan_id": task_plan.plan_id,
+                "request_type": task_plan.request_type,
+                "total_tasks": len(task_plan.tasks),
+                "execution_strategy": task_plan.execution_strategy,
+                "target_agents": target_agents,
+                "tasks": [
+                    {
+                        "id": t.id,
+                        "agent": t.agent,
+                        "action": t.action,
+                        "description": t.description,
+                        "depends_on": t.depends_on,
+                        "requires_approval": t.requires_approval,
+                    }
+                    for t in task_plan.tasks
+                ],
+                "extracted_entities": [
+                    {"type": e.entity_type, "value": e.value}
+                    for e in task_plan.extracted_entities
+                ],
+            },
+        )
+
+        yield create_stream_event(
+            "routing",
+            {
+                "agents": target_agents,
+                "message": f"Executing {len(task_plan.tasks)} task(s) with {len(target_agents)} agent(s)",
+            },
+        )
+
+        # Update state with task plan
+        state.task_plan = task_plan
+        state.target_agents = target_agents
+
+        # Track pending approvals
+        pending_approval_ids: list[str] = []
+
+        # Step 2: Execute tasks with orchestration
+        async for task_event in orchestrate_with_events(task_plan, state):
+            # Convert task events to SSE stream events
+            event_type = task_event.event_type
+            
+            if event_type == "plan_start":
+                yield create_stream_event(
+                    "orchestration_start",
+                    task_event.data,
+                )
+            
+            elif event_type == "task_start":
+                agent_name = task_event.data.get("agent", "unknown")
+                yield create_stream_event(
+                    "task_start",
+                    {
+                        "task_id": task_event.task_id,
+                        "agent": agent_name,
+                        "action": task_event.data.get("action"),
+                        "description": task_event.data.get("description"),
+                    },
+                    agent_name=agent_name,
+                )
+            
+            elif event_type == "task_complete":
+                agent_name = task_event.task.agent if task_event.task else "unknown"
+                yield create_stream_event(
+                    "task_complete",
+                    {
+                        "task_id": task_event.task_id,
+                        "status": "success",
+                        "message": task_event.data.get("message"),
+                        "result": task_event.data.get("result"),
+                        "execution_time": task_event.data.get("execution_time"),
+                    },
+                    agent_name=agent_name,
+                )
+            
+            elif event_type == "task_failed":
+                agent_name = task_event.task.agent if task_event.task else "unknown"
+                yield create_stream_event(
+                    "task_failed",
+                    {
+                        "task_id": task_event.task_id,
+                        "status": "error",
+                        "error": task_event.data.get("error"),
+                        "execution_time": task_event.data.get("execution_time"),
+                    },
+                    agent_name=agent_name,
+                )
+            
+            elif event_type == "task_approval_required":
+                # Create approval record
+                approval_id = str(uuid.uuid4())
+                agent_name = task_event.data.get("agent", "unknown")
+                
+                approval_doc = ApprovalDocument.create_with_expiry(
+                    approval_id=approval_id,
+                    request_id=request_id,
+                    agent_name=agent_name,
+                    action_type=task_event.data.get("action", "unknown"),
+                    action_description=task_event.data.get("description", "Action requires approval"),
+                    action_data=task_event.data.get("parameters", {}),
+                    expiry_hours=24,
+                )
+                await approval_repo.create(approval_doc)
+                pending_approval_ids.append(approval_id)
+                
+                yield create_stream_event(
+                    "approval_required",
+                    {
+                        "approval_id": approval_id,
+                        "task_id": task_event.task_id,
+                        "agent_name": agent_name,
+                        "action_type": task_event.data.get("action"),
+                        "description": task_event.data.get("description"),
+                        "parameters": task_event.data.get("parameters"),
+                    },
+                )
+            
+            elif event_type == "plan_complete":
+                yield create_stream_event(
+                    "orchestration_complete",
+                    {
+                        "completed": task_event.data.get("completed", 0),
+                        "failed": task_event.data.get("failed", 0),
+                        "skipped": task_event.data.get("skipped", 0),
+                    },
+                )
+
+        # Complete request in database
+        await history_repo.complete_request(
+            request_id=request_id,
+            completed_agents=target_agents,
+            pending_approvals=pending_approval_ids if pending_approval_ids else None,
+        )
+
+        # Final complete event
+        yield create_stream_event(
+            "complete",
+            {
+                "message": "All tasks completed",
+                "request_id": request_id,
+                "plan_id": task_plan.plan_id,
+                "agents_invoked": target_agents,
+                "pending_approvals": pending_approval_ids,
+            },
+        )
+
+    except Exception as e:
+        logger.error(f"Task-based stream error: {e}")
+        try:
+            await history_repo.complete_request(request_id, completed_agents=[], error=str(e))
+        except Exception:
+            pass
+        yield create_stream_event("error", {"error": str(e), "request_id": request_id})
 
 
 async def get_pending_approval(approval_id: str) -> Optional[ApprovalDocument]:
