@@ -13,17 +13,29 @@ class ChatRequest(BaseModel):
     request_id: Optional[str] = Field(default=None, description="Optional request identifier")
     event_name: Optional[str] = Field(default=None, description="Event context (e.g., 'Blueprint')")
     context: dict = Field(default_factory=dict, description="Additional context for agents")
+    conversation_history: Optional[list[dict]] = Field(
+        default=None, description="Recent messages for context continuity"
+    )
+    clarification_context: Optional[dict] = Field(
+        default=None, description="Context preserved from pending clarification"
+    )
 
 
 class AgentResultResponse(BaseModel):
     """Response model for individual agent results."""
 
     agent_name: str
-    status: Literal["success", "error", "partial"]
+    status: Literal["success", "error", "partial", "needs_clarification"]
     message: str
     data: Optional[dict] = None
     tool_calls: list[dict] = Field(default_factory=list)
     document_links: list[dict] = Field(default_factory=list, description="Links to external docs")
+    clarification_questions: Optional[list[str]] = Field(
+        default=None, description="Questions to ask user if status is needs_clarification"
+    )
+    clarification_context: Optional[dict] = Field(
+        default=None, description="Context to preserve for follow-up"
+    )
 
 
 class ChatResponse(BaseModel):
@@ -61,6 +73,8 @@ class StreamEvent(BaseModel):
         "orchestration_complete",
         # Approval and completion events
         "approval_required",
+        # Clarification events
+        "clarification_needed",
         "complete",
         "error",
     ]

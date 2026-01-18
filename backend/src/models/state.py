@@ -17,11 +17,19 @@ class AgentResult(BaseModel):
     """Result from a single agent execution."""
 
     agent_name: str = Field(description="Name of the agent that produced this result")
-    status: Literal["success", "error", "partial"] = Field(description="Execution status")
+    status: Literal["success", "error", "partial", "needs_clarification"] = Field(
+        description="Execution status"
+    )
     message: str = Field(description="Human-readable result message")
     data: Optional[dict] = Field(default=None, description="Structured result data")
     tool_calls: list[dict] = Field(default_factory=list, description="Tools invoked by agent")
     pending_actions: list[dict] = Field(default_factory=list, description="Actions pending approval")
+    clarification_questions: Optional[list[str]] = Field(
+        default=None, description="Questions to ask user if status is needs_clarification"
+    )
+    clarification_context: Optional[dict] = Field(
+        default=None, description="Context to preserve for follow-up"
+    )
 
 
 class GraphState(BaseModel):
@@ -41,6 +49,14 @@ class GraphState(BaseModel):
     # Classification (legacy - for backward compatibility)
     target_agents: list[str] = Field(
         default_factory=list, description="Agents selected by classifier"
+    )
+    
+    # Entity extraction from classifier
+    extracted_entities: dict = Field(
+        default_factory=dict, description="Entities extracted from user request"
+    )
+    inferred_action: str = Field(
+        default="", description="Specific action inferred from request"
     )
     
     # Task Plan (new - for structured workflows)

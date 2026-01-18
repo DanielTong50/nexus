@@ -28,6 +28,11 @@ from src.graph.task_orchestrator import (
 )
 from src.models.requests import ChatRequest, StreamEvent, PendingApproval
 from src.models.approval import ApprovalDocument
+from config.tool_requirements import (
+    ACTION_TO_TOOL,
+    get_missing_fields,
+    get_clarification_questions,
+)
 from src.models.state import GraphState, AgentResult
 from src.services.database import db_service
 from src.repositories.approval_repository import ApprovalRepository
@@ -318,29 +323,161 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
             context=request.context,
         )
 
-        # Classification
-        yield create_stream_event(
-            "classification",
-            {"message": "Analyzing request...", "request_id": request_id},
-        )
+        # Check if this is a follow-up to a clarification request
+        clarification_context = request.clarification_context
+        if clarification_context and isinstance(clarification_context, dict):
+            # Route directly to the agent that asked for clarification
+            agent_name = clarification_context.get("agent_name", "")
+            ctx = clarification_context.get("context", {})
+            original_prompt = ctx.get("original_prompt", "")
+            stored_entities = ctx.get("extracted_entities", {})
+            tool_name = ctx.get("tool_name", "")
+            
+            if agent_name:
+                target_agents = [agent_name]
+                
+                # Extract entities from the follow-up message
+                classification_result = await classify_request(GraphState(
+                    request_id=request_id,
+                    user_message=request.message,
+                ))
+                new_entities = classification_result.get("extracted_entities", {})
+                
+                # Merge: new entities override stored ones
+                merged_entities = {**stored_entities, **new_entities}
+                
+                # Re-check if all required fields are now present
+                if tool_name:
+                    missing_fields = get_missing_fields(tool_name, merged_entities)
+                    
+                    if missing_fields:
+                        # Still missing fields - ask again
+                        questions = get_clarification_questions(tool_name, missing_fields)
+                        if questions:
+                            clarification_msg = f"Thanks! I still need a bit more information:\n\n"
+                            clarification_msg += "\n".join([f"{i+1}. {q}" for i, q in enumerate(questions)])
+                            
+                            yield create_stream_event(
+                                "clarification_needed",
+                                {
+                                    "agent_name": agent_name,
+                                    "message": clarification_msg,
+                                    "questions": questions,
+                                    "context": {
+                                        "original_prompt": original_prompt,
+                                        "agent": agent_name,
+                                        "tool_name": tool_name,
+                                        "extracted_entities": merged_entities,
+                                        "missing_fields": missing_fields,
+                                    },
+                                },
+                            )
+                            
+                            yield create_stream_event(
+                                "complete",
+                                {"message": "Waiting for additional information", "needs_clarification": True}
+                            )
+                            return
+                
+                # All fields present - combine message with context and proceed
+                combined_message = (
+                    f"[Original request: {original_prompt}]\n\n"
+                    f"[User provided: {request.message}]\n\n"
+                    f"[Extracted info: {merged_entities}]\n\n"
+                    f"Please proceed with the {tool_name} tool using the extracted info."
+                )
+                state.user_message = combined_message
+                state.extracted_entities = merged_entities
+                state.inferred_action = tool_name
+                
+                yield create_stream_event(
+                    "routing",
+                    {
+                        "agents": target_agents,
+                        "message": f"Continuing with {agent_name} agent",
+                    },
+                )
+                state.target_agents = target_agents
+            else:
+                # Fall back to normal classification
+                clarification_context = None
 
-        classification_result, target_agents = await stream_classification(state)
-        state.target_agents = target_agents
+        if not clarification_context:
+            # Normal flow: Classification
+            yield create_stream_event(
+                "classification",
+                {"message": "Analyzing request...", "request_id": request_id},
+            )
 
-        # Log classification result
-        await history_repo.record_classification(
-            request_id=request_id,
-            target_agents=target_agents,
-            classification_result=classification_result,
-        )
+            classification_result, target_agents = await stream_classification(state)
+            state.target_agents = target_agents
 
-        yield create_stream_event(
-            "routing",
-            {
-                "agents": target_agents,
-                "message": f"Routing to {len(target_agents)} agent(s)",
-            },
-        )
+            # Log classification result
+            await history_repo.record_classification(
+                request_id=request_id,
+                target_agents=target_agents,
+                classification_result=classification_result,
+            )
+
+            yield create_stream_event(
+                "routing",
+                {
+                    "agents": target_agents,
+                    "message": f"Routing to {len(target_agents)} agent(s)",
+                },
+            )
+            
+            # --- Pre-flight clarification check ---
+            # Check if the inferred action requires fields that are missing
+            inferred_action = state.inferred_action
+            extracted_entities = state.extracted_entities
+            
+            # Map action to tool name
+            tool_name = ACTION_TO_TOOL.get(inferred_action, inferred_action)
+            
+            if tool_name:
+                missing_fields = get_missing_fields(tool_name, extracted_entities)
+                
+                if missing_fields:
+                    questions = get_clarification_questions(tool_name, missing_fields)
+                    
+                    # Build clarification message
+                    if questions:
+                        agent_name = target_agents[0] if target_agents else "assistant"
+                        clarification_msg = f"I can help with that. Please provide the following information:\n\n"
+                        clarification_msg += "\n".join([f"{i+1}. {q}" for i, q in enumerate(questions)])
+                        
+                        # Emit clarification_needed event
+                        yield create_stream_event(
+                            "clarification_needed",
+                            {
+                                "agent_name": agent_name,
+                                "message": clarification_msg,
+                                "questions": questions,
+                                "context": {
+                                    "original_prompt": request.message,
+                                    "agent": agent_name,
+                                    "tool_name": tool_name,
+                                    "extracted_entities": extracted_entities,
+                                    "missing_fields": missing_fields,
+                                },
+                            },
+                        )
+                        
+                        # Mark request as needing clarification
+                        await history_repo.complete_request(
+                            request_id,
+                            completed_agents=[],
+                            status="needs_clarification"
+                        )
+                        
+                        yield create_stream_event(
+                            "complete",
+                            {"message": "Waiting for additional information", "needs_clarification": True}
+                        )
+                        return
+
+        target_agents = state.target_agents
 
         if not target_agents:
             await history_repo.complete_request(request_id, completed_agents=[])
@@ -384,6 +521,22 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
                 },
                 agent_name=agent_result.agent_name,
             )
+
+            # Check if agent needs clarification from user
+            needs_clarification = (
+                getattr(agent_result, 'needs_clarification', False) or
+                getattr(agent_result, 'status', '') == 'needs_clarification'
+            )
+            if needs_clarification:
+                yield create_stream_event(
+                    "clarification_needed",
+                    {
+                        "agent_name": agent_result.agent_name,
+                        "message": agent_result.message,
+                        "questions": getattr(agent_result, 'clarification_questions', []) or [],
+                        "context": getattr(agent_result, 'clarification_context', {}) or {},
+                    },
+                )
 
             # Check for pending actions that require approval
             if hasattr(agent_result, 'pending_actions') and agent_result.pending_actions:

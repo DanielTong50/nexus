@@ -124,13 +124,22 @@ async def run_finance_agent(state: GraphState) -> dict:
             context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
         )
 
+        # Determine status - check for clarification first
+        if getattr(result, 'needs_clarification', False):
+            status = "needs_clarification"
+        else:
+            status = "success" if result.success else "error"
+
         agent_result = AgentResult(
             agent_name="finance",
-            status="success" if result.success else "error",
+            status=status,
             message=result.message,
             data={"execution_time": time.time() - start_time},
             tool_calls=result.tool_calls,
             pending_actions=result.pending_actions if hasattr(result, 'pending_actions') else [],
+            # Propagate clarification fields
+            clarification_questions=getattr(result, 'clarification_questions', None),
+            clarification_context=getattr(result, 'clarification_context', None),
         )
 
         logger.info(f"Finance agent completed in {time.time() - start_time:.3f}s")

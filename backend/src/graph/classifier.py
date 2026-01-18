@@ -50,6 +50,14 @@ class ClassifierResponse(BaseModel):
         default="",
         description="Brief explanation of the classification decision",
     )
+    inferred_action: str = Field(
+        default="",
+        description="The specific action/tool the user wants (e.g., 'generate_mou')",
+    )
+    extracted_entities: dict = Field(
+        default_factory=dict,
+        description="Entities extracted from the request (company, tier, contact, email, amount, etc.)",
+    )
 
 
 def _get_classifier_llm() -> ChatGoogleGenerativeAI:
@@ -62,17 +70,19 @@ def _get_classifier_llm() -> ChatGoogleGenerativeAI:
     )
 
 
-def _parse_llm_response(content: str) -> list[str]:
-    """Parse LLM response to extract agent names.
+def _parse_llm_response(content: str) -> tuple[list[str], str, dict]:
+    """Parse LLM response to extract agents, action, and entities.
 
     Args:
         content: Raw LLM response string
 
     Returns:
-        List of valid agent names
+        Tuple of (agent names, inferred action, extracted entities)
     """
+    action = ""
+    entities = {}
+    
     try:
-        # Try to parse as JSON
         # Handle cases where response might have markdown code blocks
         content = content.strip()
         if content.startswith("```"):
@@ -89,11 +99,16 @@ def _parse_llm_response(content: str) -> list[str]:
         elif isinstance(data, dict):
             # Look for common keys
             agents = data.get("target_agents", data.get("agents", []))
+            action = data.get("action", "")
+            entities = data.get("entities", {})
+            # Clean empty string values from entities
+            entities = {k: v for k, v in entities.items() if v and str(v).strip()}
         else:
             agents = []
 
         # Filter to valid agents only
-        return [a.lower().strip() for a in agents if a.lower().strip() in VALID_AGENTS]
+        valid_agents = [a.lower().strip() for a in agents if a.lower().strip() in VALID_AGENTS]
+        return valid_agents, action, entities
 
     except json.JSONDecodeError:
         logger.warning(f"Failed to parse classifier response as JSON: {content}")
@@ -103,26 +118,27 @@ def _parse_llm_response(content: str) -> list[str]:
         for agent in VALID_AGENTS:
             if agent in content_lower:
                 found_agents.append(agent)
-        return found_agents
+        return found_agents, "", {}
 
 
 async def classify_request(state: GraphState) -> dict:
     """Classify the user request and determine target agents.
 
     This node analyzes the user message using Gemini 3 Pro and decides
-    which specialized agents should handle the request.
+    which specialized agents should handle the request. Also extracts
+    entities from the request for use by the clarification engine.
 
     Args:
         state: Current graph state containing user_message
 
     Returns:
-        Dict with target_agents list to update graph state
+        Dict with target_agents, inferred_action, and extracted_entities
     """
     user_message = state.user_message
 
     if not user_message or not user_message.strip():
         logger.warning("Empty user message received")
-        return {"target_agents": []}
+        return {"target_agents": [], "extracted_entities": {}, "inferred_action": ""}
 
     try:
         llm = _get_classifier_llm()
@@ -139,20 +155,29 @@ async def classify_request(state: GraphState) -> dict:
 
         logger.info(f"Classifier raw response: {content}")
 
-        # Parse the response
-        target_agents = _parse_llm_response(content)
+        # Parse the response - now returns agents, action, and entities
+        target_agents, inferred_action, extracted_entities = _parse_llm_response(content)
 
         if not target_agents:
             logger.warning(f"No agents identified for request: {user_message[:100]}")
 
-        logger.info(f"Classified request to agents: {target_agents}")
+        logger.info(f"Classified request to agents: {target_agents}, action: {inferred_action}, entities: {extracted_entities}")
 
-        return {"target_agents": target_agents}
+        return {
+            "target_agents": target_agents,
+            "inferred_action": inferred_action,
+            "extracted_entities": extracted_entities,
+        }
 
     except Exception as e:
         logger.error(f"Classification failed: {e}")
-        # On error, return empty list - workflow will handle gracefully
-        return {"target_agents": [], "errors": [{"type": "classification_error", "message": str(e)}]}
+        # On error, return empty values - workflow will handle gracefully
+        return {
+            "target_agents": [],
+            "extracted_entities": {},
+            "inferred_action": "",
+            "errors": [{"type": "classification_error", "message": str(e)}]
+        }
 
 
 async def classify_with_details(user_message: str) -> ClassifierResponse:
