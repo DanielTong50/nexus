@@ -43,7 +43,7 @@ export function Hero() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.2 }}
-                        className="mt-6 text-xl md:text-2xl text-slate-300 max-w-xl leading-relaxed"
+                        className="mt-6 text-lg md:text-xl text-slate-300 max-w-xl leading-relaxed"
                     >
                         Nexus is an AI-native platform that gives student clubs a full production team.
                         From sponsorships to marketing to logistics — all powered by intelligent agents.
@@ -81,10 +81,12 @@ export function Hero() {
                         size={400}
                         items={radialNavItems}
                         defaultActiveId={1}
+                        autoRotate={true}
+                        autoRotateInterval={1300}
                         menuButtonConfig={{
-                            iconSize: 24,
-                            buttonSize: 48,
-                            buttonPadding: 12,
+                            iconSize: 30,
+                            buttonSize: 60,
+                            buttonPadding: 15,
                         }}
                     />
                 </motion.div>

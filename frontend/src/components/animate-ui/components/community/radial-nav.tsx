@@ -10,6 +10,8 @@ type RadialNavProps = {
     menuButtonConfig?: MenuButtonConfig;
     defaultActiveId?: number;
     onActiveChange?: (id: number) => void;
+    autoRotate?: boolean;
+    autoRotateInterval?: number;
 };
 
 type RadialNavItem = {
@@ -44,7 +46,7 @@ const BUTTON_MOTION_CONFIG = {
     variants: {
         rest: { maxWidth: '40px' },
         hover: {
-            maxWidth: '140px',
+            maxWidth: '180px',
             transition: { type: 'spring', stiffness: 200, damping: 35, delay: 0.05 },
         },
         tap: { scale: 0.95 },
@@ -181,6 +183,8 @@ function RadialNav({
     menuButtonConfig,
     defaultActiveId,
     onActiveChange,
+    autoRotate = false,
+    autoRotateInterval = 1000,
 }: RadialNavProps) {
     const orbitRadius = size / 2 - 0.5;
     const [activeId, setActiveId] = React.useState<number | null>(
@@ -194,6 +198,25 @@ function RadialNav({
         },
         [onActiveChange],
     );
+
+    // Auto-rotation logic
+    React.useEffect(() => {
+        if (!autoRotate || items.length === 0) return;
+
+        const sortedIds = items.map(item => item.id).sort((a, b) => a - b);
+
+        const interval = setInterval(() => {
+            setActiveId((currentId) => {
+                const currentIndex = sortedIds.indexOf(currentId ?? sortedIds[0]);
+                const nextIndex = (currentIndex + 1) % sortedIds.length;
+                const nextId = sortedIds[nextIndex];
+                onActiveChange?.(nextId);
+                return nextId;
+            });
+        }, autoRotateInterval);
+
+        return () => clearInterval(interval);
+    }, [autoRotate, autoRotateInterval, items, onActiveChange]);
 
     const baseAngle =
         (items.find((it) => it.id === activeId)?.angle ?? 0) + POINTER_BASE_DEG;
