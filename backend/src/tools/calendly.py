@@ -4,24 +4,31 @@ Calendly tools for Nexus.
 Provides meeting link generation via MCP.
 """
 
+from typing import Optional
+
 from langchain_core.tools import tool
 
 from src.services.mcp_client import mcp_client
 
 
 @tool
-async def prepare_calendly_link(assignee: str = "", meeting_type: str = "") -> str:
+async def prepare_calendly_link(
+    assignee: str = "", 
+    meeting_type: str = "",
+    user_id: Optional[str] = None
+) -> str:
     """Get the Calendly scheduling URL for the user.
     
     Args:
         assignee: Team member name (not used currently, for future multi-user support)
         meeting_type: Type of meeting (not used currently)
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Calendly scheduling link
     """
     try:
-        result = await mcp_client.call_calendly_tool("get_current_user", {})
+        result = await mcp_client.call_calendly_tool("get_current_user", {}, user_id=user_id)
         
         if isinstance(result, dict):
             if result.get("error"):
@@ -39,8 +46,11 @@ async def prepare_calendly_link(assignee: str = "", meeting_type: str = "") -> s
 
 
 @tool
-async def list_calendly_event_types() -> str:
+async def list_calendly_event_types(user_id: Optional[str] = None) -> str:
     """List available Calendly event types with their scheduling URLs.
+    
+    Args:
+        user_id: Optional user ID for per-user OAuth token
     
     Returns:
         List of event types with URLs
@@ -48,7 +58,8 @@ async def list_calendly_event_types() -> str:
     try:
         result = await mcp_client.call_calendly_tool(
             "list_event_types",
-            {"active_only": True}
+            {"active_only": True},
+            user_id=user_id
         )
         
         if isinstance(result, dict):

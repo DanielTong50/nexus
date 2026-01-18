@@ -50,7 +50,8 @@ async def send_availability_poll(
     attendees: list[str],
     duration: str,
     date_range: str,
-    slack_channel: str
+    slack_channel: str,
+    user_id: Optional[str] = None
 ) -> str:
     """Post When2Meet/LettuceMeet poll link to Slack channel.
     
@@ -59,6 +60,7 @@ async def send_availability_poll(
         duration: Meeting duration (e.g., '1h', '30m')
         date_range: Date range for poll (e.g., 'Jan 20-25')
         slack_channel: Slack channel to post poll to
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Confirmation with poll link or error
@@ -75,7 +77,8 @@ async def send_availability_poll(
     try:
         result = await mcp_client.call_slack_tool(
             "post_message",
-            {"channel": slack_channel, "text": poll_message}
+            {"channel": slack_channel, "text": poll_message},
+            user_id=user_id
         )
         
         if isinstance(result, dict) and result.get("success"):
@@ -88,12 +91,17 @@ async def send_availability_poll(
 
 
 @tool
-async def send_team_reminder(team: str, message: str) -> str:
+async def send_team_reminder(
+    team: str, 
+    message: str,
+    user_id: Optional[str] = None
+) -> str:
     """Post reminder to a team's Slack channel.
     
     Args:
         team: Team name (e.g., 'partnerships', 'logistics')
         message: Reminder message
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Confirmation or error
@@ -104,7 +112,8 @@ async def send_team_reminder(team: str, message: str) -> str:
     try:
         result = await mcp_client.call_slack_tool(
             "post_message",
-            {"channel": channel, "text": reminder_message}
+            {"channel": channel, "text": reminder_message},
+            user_id=user_id
         )
         
         if isinstance(result, dict) and result.get("success"):
@@ -120,7 +129,8 @@ async def send_team_reminder(team: str, message: str) -> str:
 async def announce_to_slack(
     channel: str,
     message: str,
-    mention_team: Optional[bool] = False
+    mention_team: Optional[bool] = False,
+    user_id: Optional[str] = None
 ) -> str:
     """Post announcement to Slack channel.
     
@@ -128,6 +138,7 @@ async def announce_to_slack(
         channel: Slack channel name (e.g., '#blueprint-team')
         message: Announcement message
         mention_team: Whether to include @channel mention
+        user_id: Optional user ID for per-user OAuth token
         
     Returns:
         Confirmation or error
@@ -139,7 +150,8 @@ async def announce_to_slack(
                 "channel": channel,
                 "text": message,
                 "mention_channel": mention_team
-            }
+            },
+            user_id=user_id
         )
         
         if isinstance(result, dict) and result.get("success"):
@@ -153,14 +165,17 @@ async def announce_to_slack(
 
 
 @tool
-async def list_slack_channels() -> str:
+async def list_slack_channels(user_id: Optional[str] = None) -> str:
     """List available Slack channels that the bot can post to.
+    
+    Args:
+        user_id: Optional user ID for per-user OAuth token
     
     Returns:
         List of available channels
     """
     try:
-        result = await mcp_client.call_slack_tool("list_channels", {})
+        result = await mcp_client.call_slack_tool("list_channels", {}, user_id=user_id)
         
         if isinstance(result, dict) and "channels" in result:
             channels = result["channels"]

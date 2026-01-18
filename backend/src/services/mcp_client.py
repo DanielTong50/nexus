@@ -121,17 +121,36 @@ class MCPClientManager:
             raise
     
     @asynccontextmanager
-    async def get_slack_session(self):
+    async def get_slack_session(self, user_id: str | None = None):
         """Get or create a Slack MCP session.
         
         Uses our custom Python-based MCP server that connects to
-        Slack API using bot token credentials.
+        Slack API. Supports per-user OAuth tokens or fallback to bot token.
+        
+        Args:
+            user_id: Optional user ID to fetch OAuth token for
         
         Yields:
             ClientSession: Active MCP session for Slack operations.
         """
         if not settings.mcp_enabled:
             raise RuntimeError("MCP is disabled")
+        
+        # Get token from TokenService if user_id provided
+        token = None
+        if user_id:
+            from src.services.token_service import token_service
+            token = await token_service.get_token(user_id, "slack")
+            if token:
+                logger.debug(f"Using OAuth token for user {user_id} (Slack)")
+        
+        # Fall back to environment variable
+        if not token:
+            token = settings.slack_bot_token
+            logger.debug("Using fallback bot token for Slack")
+        
+        if not token:
+            raise RuntimeError("No Slack token available - connect Slack or set SLACK_BOT_TOKEN")
         
         # Import here to avoid circular imports
         from src.tools.slack import get_allowed_channels_str
@@ -144,7 +163,7 @@ class MCPClientManager:
             command=python_executable,
             args=["-m", "src.mcp_servers.slack_server"],
             env={
-                "SLACK_BOT_TOKEN": settings.slack_bot_token,
+                "SLACK_BOT_TOKEN": token,
                 "SLACK_ALLOWED_CHANNELS": get_allowed_channels_str(),
             },
         )
@@ -157,19 +176,21 @@ class MCPClientManager:
     async def call_slack_tool(
         self, 
         tool_name: str, 
-        arguments: dict[str, Any]
+        arguments: dict[str, Any],
+        user_id: str | None = None
     ) -> Any:
         """Call a Slack MCP tool.
         
         Args:
             tool_name: Name of the MCP tool to call (e.g., "post_message", "list_channels")
             arguments: Tool arguments as a dictionary
+            user_id: Optional user ID for per-user OAuth token
             
         Returns:
             Tool execution result (parsed from JSON)
         """
         try:
-            async with self.get_slack_session() as session:
+            async with self.get_slack_session(user_id=user_id) as session:
                 result = await session.call_tool(tool_name, arguments)
                 
                 # Parse the result content
@@ -190,10 +211,30 @@ class MCPClientManager:
     # =========================================================================
     
     @asynccontextmanager
-    async def get_github_session(self):
-        """Get or create a GitHub MCP session."""
+    async def get_github_session(self, user_id: str | None = None):
+        """Get or create a GitHub MCP session.
+        
+        Args:
+            user_id: Optional user ID to fetch OAuth token for
+        """
         if not settings.mcp_enabled:
             raise RuntimeError("MCP is disabled")
+        
+        # Get token from TokenService if user_id provided
+        token = None
+        if user_id:
+            from src.services.token_service import token_service
+            token = await token_service.get_token(user_id, "github")
+            if token:
+                logger.debug(f"Using OAuth token for user {user_id} (GitHub)")
+        
+        # Fall back to environment variable
+        if not token:
+            token = settings.github_token
+            logger.debug("Using fallback token for GitHub")
+        
+        if not token:
+            raise RuntimeError("No GitHub token available - connect GitHub or set GITHUB_TOKEN")
         
         python_executable = sys.executable
         
@@ -201,7 +242,7 @@ class MCPClientManager:
             command=python_executable,
             args=["-m", "src.mcp_servers.github_server"],
             env={
-                "GITHUB_TOKEN": settings.github_token,
+                "GITHUB_TOKEN": token,
                 "GITHUB_DEFAULT_OWNER": getattr(settings, 'github_default_owner', ''),
             },
         )
@@ -214,11 +255,18 @@ class MCPClientManager:
     async def call_github_tool(
         self, 
         tool_name: str, 
-        arguments: dict[str, Any]
+        arguments: dict[str, Any],
+        user_id: str | None = None
     ) -> Any:
-        """Call a GitHub MCP tool."""
+        """Call a GitHub MCP tool.
+        
+        Args:
+            tool_name: Name of the MCP tool to call
+            arguments: Tool arguments as a dictionary
+            user_id: Optional user ID for per-user OAuth token
+        """
         try:
-            async with self.get_github_session() as session:
+            async with self.get_github_session(user_id=user_id) as session:
                 result = await session.call_tool(tool_name, arguments)
                 
                 if result.content and len(result.content) > 0:
@@ -238,10 +286,30 @@ class MCPClientManager:
     # =========================================================================
     
     @asynccontextmanager
-    async def get_calendly_session(self):
-        """Get or create a Calendly MCP session."""
+    async def get_calendly_session(self, user_id: str | None = None):
+        """Get or create a Calendly MCP session.
+        
+        Args:
+            user_id: Optional user ID to fetch OAuth token for
+        """
         if not settings.mcp_enabled:
             raise RuntimeError("MCP is disabled")
+        
+        # Get token from TokenService if user_id provided
+        token = None
+        if user_id:
+            from src.services.token_service import token_service
+            token = await token_service.get_token(user_id, "calendly")
+            if token:
+                logger.debug(f"Using OAuth token for user {user_id} (Calendly)")
+        
+        # Fall back to environment variable
+        if not token:
+            token = settings.calendly_api_key
+            logger.debug("Using fallback API key for Calendly")
+        
+        if not token:
+            raise RuntimeError("No Calendly token available - connect Calendly or set CALENDLY_API_KEY")
         
         python_executable = sys.executable
         
@@ -249,7 +317,7 @@ class MCPClientManager:
             command=python_executable,
             args=["-m", "src.mcp_servers.calendly_server"],
             env={
-                "CALENDLY_API_KEY": settings.calendly_api_key,
+                "CALENDLY_API_KEY": token,
             },
         )
         
@@ -261,11 +329,18 @@ class MCPClientManager:
     async def call_calendly_tool(
         self, 
         tool_name: str, 
-        arguments: dict[str, Any]
+        arguments: dict[str, Any],
+        user_id: str | None = None
     ) -> Any:
-        """Call a Calendly MCP tool."""
+        """Call a Calendly MCP tool.
+        
+        Args:
+            tool_name: Name of the MCP tool to call
+            arguments: Tool arguments as a dictionary
+            user_id: Optional user ID for per-user OAuth token
+        """
         try:
-            async with self.get_calendly_session() as session:
+            async with self.get_calendly_session(user_id=user_id) as session:
                 result = await session.call_tool(tool_name, arguments)
                 
                 if result.content and len(result.content) > 0:
@@ -285,10 +360,30 @@ class MCPClientManager:
     # =========================================================================
     
     @asynccontextmanager
-    async def get_notion_session(self):
-        """Get or create a Notion MCP session."""
+    async def get_notion_session(self, user_id: str | None = None):
+        """Get or create a Notion MCP session.
+        
+        Args:
+            user_id: Optional user ID to fetch OAuth token for
+        """
         if not settings.mcp_enabled:
             raise RuntimeError("MCP is disabled")
+        
+        # Get token from TokenService if user_id provided
+        token = None
+        if user_id:
+            from src.services.token_service import token_service
+            token = await token_service.get_token(user_id, "notion")
+            if token:
+                logger.debug(f"Using OAuth token for user {user_id} (Notion)")
+        
+        # Fall back to environment variable
+        if not token:
+            token = settings.notion_token
+            logger.debug("Using fallback token for Notion")
+        
+        if not token:
+            raise RuntimeError("No Notion token available - connect Notion or set NOTION_TOKEN")
         
         # Import here to avoid circular imports
         from src.tools.notion import get_timeline_database_id
@@ -299,7 +394,7 @@ class MCPClientManager:
             command=python_executable,
             args=["-m", "src.mcp_servers.notion_server"],
             env={
-                "NOTION_TOKEN": settings.notion_token,
+                "NOTION_TOKEN": token,
                 "NOTION_TIMELINE_DATABASE_ID": get_timeline_database_id(),
             },
         )
@@ -312,11 +407,18 @@ class MCPClientManager:
     async def call_notion_tool(
         self, 
         tool_name: str, 
-        arguments: dict[str, Any]
+        arguments: dict[str, Any],
+        user_id: str | None = None
     ) -> Any:
-        """Call a Notion MCP tool."""
+        """Call a Notion MCP tool.
+        
+        Args:
+            tool_name: Name of the MCP tool to call
+            arguments: Tool arguments as a dictionary
+            user_id: Optional user ID for per-user OAuth token
+        """
         try:
-            async with self.get_notion_session() as session:
+            async with self.get_notion_session(user_id=user_id) as session:
                 result = await session.call_tool(tool_name, arguments)
                 
                 if result.content and len(result.content) > 0:
