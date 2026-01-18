@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { Menu, X, Sparkles } from "lucide-react";
+import { Menu, X, Github } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
-    { label: "Features", href: "#features" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Agent Teams", href: "#agents" },
-    { label: "FAQ", href: "#faq" },
+    { label: "How it Works", href: "#how-it-works" },
+    { label: "Why Nexus Wins", href: "#stats" },
+    { label: "Meet the Team", href: "#meet-the-team" },
+    // { label: "DevPost", href: "https://nwhacks-2026.devpost.com/?ref_feature=challenge&ref_medium=your-open-hackathons&ref_content=Submissions+open&_gl=1*1kyvo83*_gcl_au*MTU4NzA3MDg0NC4xNzY4NDYyOTEx*_ga*MTY5Mjk4MjkxOS4xNzY4NDYyOTEx*_ga_0YHJK3Y10M*czE3Njg3NDE1NjIkbzckZzEkdDE3Njg3NDE1NjckajU1JGwwJGgw" },
+    // { label: "GitHub", href: "https://github.com/DanielTong50/nexus" },
+    { label: "FAQ", href: "#faq" }
 ];
 
 export function LandingNavbar() {
@@ -24,39 +27,59 @@ export function LandingNavbar() {
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-b border-slate-800"
         >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="w-full px-6 sm:px-12 lg:px-24">
                 <div className="flex items-center justify-between h-16">
-                    {/* Logo */}
-                    <Link href="/" className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
-                            <Sparkles className="h-5 w-5 text-black" />
-                        </div>
-                        <span className="text-xl font-bold text-white">Nexus</span>
-                    </Link>
-
-                    {/* Desktop Navigation */}
-                    <nav className="hidden md:flex items-center gap-8">
+                    {/* Left side - Nexus text + Navigation */}
+                    <div className="flex items-center gap-8">
+                        <Link href="/" className="text-3xl font-bold text-white leading-none">
+                            Nexus
+                        </Link>
+                        <nav className="hidden md:flex items-center gap-8">
                         {NAV_LINKS.map((link) => (
                             <a
                                 key={link.href}
                                 href={link.href}
-                                className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
+                                className="text-sm font-medium text-white hover:text-slate-300 transition-colors leading-none"
                             >
                                 {link.label}
                             </a>
                         ))}
-                    </nav>
+                        </nav>
+                    </div>
 
-                    {/* CTA Buttons */}
+                    {/* Right side - Social box + Sign In */}
                     <div className="hidden md:flex items-center gap-3">
-                        <Link href="/events">
-                            <Button variant="ghost" size="sm">
+                        {/* Combined GitHub / DevPost box */}
+                        <div className="h-10 px-4 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center gap-3">
+                            <span className="text-sm text-white">View Source</span>
+                            <a
+                                href="https://github.com/DanielTong50/nexus"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-neutral-400 hover:text-white transition-colors"
+                            >
+                                <Github className="h-6 w-6" />
+                            </a>
+                            <span className="text-neutral-600">/</span>
+                            <a
+                                href="https://nwhacks-2026.devpost.com/?ref_feature=challenge&ref_medium=your-open-hackathons&ref_content=Submissions+open"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-neutral-400 hover:text-white transition-colors"
+                            >
+                                <Image
+                                    src="/photos/devpost.jpg"
+                                    alt="DevPost"
+                                    width={28}
+                                    height={28}
+                                    className="h-7 w-7 rounded-sm object-contain"
+                                />
+                            </a>
+                        </div>
+
+                        <Link href="/dashboard">
+                            <Button className="bg-white hover:bg-slate-200 text-black font-semibold px-6 h-10 text-sm">
                                 Sign In
-                            </Button>
-                        </Link>
-                        <Link href="/events">
-                            <Button size="sm" className="bg-white hover:bg-slate-200 text-black">
-                                Get Started
                             </Button>
                         </Link>
                     </div>
@@ -88,14 +111,34 @@ export function LandingNavbar() {
                             </a>
                         ))}
                         <div className="pt-4 px-4 space-y-2">
-                            <Link href="/events" className="block">
-                                <Button variant="outline" className="w-full">
-                                    Sign In
-                                </Button>
-                            </Link>
-                            <Link href="/events" className="block">
+                            <div className="flex items-center justify-center gap-4 py-2">
+                                <a
+                                    href="https://github.com/DanielTong50/nexus"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-neutral-400 hover:text-white transition-colors"
+                                >
+                                    <Github className="h-5 w-5" />
+                                </a>
+                                <span className="text-neutral-600">/</span>
+                                <a
+                                    href="https://nwhacks-2026.devpost.com/?ref_feature=challenge&ref_medium=your-open-hackathons&ref_content=Submissions+open"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-neutral-400 hover:text-white transition-colors"
+                                >
+                                    <Image
+                                        src="/photos/devpost.jpg"
+                                        alt="DevPost"
+                                        width={20}
+                                        height={20}
+                                        className="h-5 w-5 rounded-sm object-contain"
+                                    />
+                                </a>
+                            </div>
+                            <Link href="/dashboard" className="block">
                                 <Button className="w-full bg-white hover:bg-slate-200 text-black">
-                                    Get Started
+                                    Sign In
                                 </Button>
                             </Link>
                         </div>

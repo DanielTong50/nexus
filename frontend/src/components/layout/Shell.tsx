@@ -68,9 +68,18 @@ export default function Shell() {
 
                 {/* Content */}
                 <ScrollArea className="flex-1">
-                    <div className="p-6">
-                        {renderView()}
-                    </div>
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={activeView}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.2, ease: "easeOut" }}
+                            className="p-6"
+                        >
+                            {renderView()}
+                        </motion.div>
+                    </AnimatePresence>
                 </ScrollArea>
             </main>
 

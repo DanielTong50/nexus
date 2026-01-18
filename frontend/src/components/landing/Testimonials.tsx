@@ -31,7 +31,7 @@ const TESTIMONIALS = [
 
 export function Testimonials() {
     return (
-        <section className="py-24">
+        <section className="py-24 scroll-mt-16" id="testimonials">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <motion.div

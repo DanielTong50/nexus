@@ -235,7 +235,7 @@ export function ChatPanel({ onClose }: ChatPanelProps) {
                             </div>
 
                             <p className="text-sm font-normal text-slate-400 mb-10">
-                                Integrated with every App
+                                Integrated Every Feature <span className="text-blue-500 font-medium">powered by Vultr</span>
                             </p>
                         </div>
                     ) : (

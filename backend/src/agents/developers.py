@@ -8,12 +8,12 @@ Uses LLM to intelligently select and execute tools.
 import logging
 from typing import Any
 
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from config.settings import settings
 from config.prompts import DEVELOPERS_SYSTEM_PROMPT
 from src.agents.base import BaseAgent, AgentResult
+from src.services.llm_factory import get_llm_for_agent
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,8 @@ class DevelopersAgent(BaseAgent):
 
     def _get_llm(self):
         if self.llm is None:
-            self.llm = ChatGoogleGenerativeAI(
-                model=settings.agent_model,
-                google_api_key=settings.google_api_key,
-                temperature=0.3,
-            )
+            # Uses Vultr (Llama 3.3 70B) if API key is configured
+            self.llm = get_llm_for_agent(self.agent_name, temperature=0.3)
         return self.llm
 
     def _register_tools(self):

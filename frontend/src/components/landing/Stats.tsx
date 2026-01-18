@@ -4,7 +4,7 @@ import { motion, useInView } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
 
 const STATS = [
-    { value: 500, suffix: "+", label: "Student Organizations" },
+    { value: 10, suffix: "+", label: "Student Organizations" },
     { value: 50, suffix: "K+", label: "Events Powered" },
     { value: 2, suffix: "M+", label: "Sponsorship Dollars Raised" },
     { value: 99, suffix: "%", label: "Customer Satisfaction" },
@@ -45,7 +45,7 @@ function AnimatedCounter({ value, suffix }: { value: number; suffix: string }) {
 
 export function Stats() {
     return (
-        <section className="py-20 bg-slate-900/80">
+        <section className="py-20 bg-slate-900/80" id="stats">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                     {STATS.map((stat, index) => (
@@ -57,6 +57,7 @@ export function Stats() {
                             transition={{ duration: 0.5, delay: index * 0.1 }}
                             className="text-center"
                         >
+
                             <div className="text-4xl md:text-5xl font-bold text-white mb-2">
                                 <AnimatedCounter value={stat.value} suffix={stat.suffix} />
                             </div>
