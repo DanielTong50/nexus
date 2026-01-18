@@ -119,6 +119,264 @@ class MCPClientManager:
         except Exception as e:
             logger.error(f"MCP tool call failed: {tool_name} - {e}")
             raise
+    
+    @asynccontextmanager
+    async def get_slack_session(self):
+        """Get or create a Slack MCP session.
+        
+        Uses our custom Python-based MCP server that connects to
+        Slack API using bot token credentials.
+        
+        Yields:
+            ClientSession: Active MCP session for Slack operations.
+        """
+        if not settings.mcp_enabled:
+            raise RuntimeError("MCP is disabled")
+        
+        # Import here to avoid circular imports
+        from src.tools.slack import get_allowed_channels_str
+        
+        # Get the Python executable from the current environment
+        python_executable = sys.executable
+        
+        # Our custom Python MCP server
+        server_params = StdioServerParameters(
+            command=python_executable,
+            args=["-m", "src.mcp_servers.slack_server"],
+            env={
+                "SLACK_BOT_TOKEN": settings.slack_bot_token,
+                "SLACK_ALLOWED_CHANNELS": get_allowed_channels_str(),
+            },
+        )
+        
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                yield session
+    
+    async def call_slack_tool(
+        self, 
+        tool_name: str, 
+        arguments: dict[str, Any]
+    ) -> Any:
+        """Call a Slack MCP tool.
+        
+        Args:
+            tool_name: Name of the MCP tool to call (e.g., "post_message", "list_channels")
+            arguments: Tool arguments as a dictionary
+            
+        Returns:
+            Tool execution result (parsed from JSON)
+        """
+        try:
+            async with self.get_slack_session() as session:
+                result = await session.call_tool(tool_name, arguments)
+                
+                # Parse the result content
+                if result.content and len(result.content) > 0:
+                    text_content = result.content[0]
+                    if hasattr(text_content, 'text'):
+                        try:
+                            return json.loads(text_content.text)
+                        except json.JSONDecodeError:
+                            return text_content.text
+                return result.content
+        except Exception as e:
+            logger.error(f"MCP Slack tool call failed: {tool_name} - {e}")
+            raise
+    
+    # =========================================================================
+    # GitHub MCP
+    # =========================================================================
+    
+    @asynccontextmanager
+    async def get_github_session(self):
+        """Get or create a GitHub MCP session."""
+        if not settings.mcp_enabled:
+            raise RuntimeError("MCP is disabled")
+        
+        python_executable = sys.executable
+        
+        server_params = StdioServerParameters(
+            command=python_executable,
+            args=["-m", "src.mcp_servers.github_server"],
+            env={
+                "GITHUB_TOKEN": settings.github_token,
+                "GITHUB_DEFAULT_OWNER": getattr(settings, 'github_default_owner', ''),
+            },
+        )
+        
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                yield session
+    
+    async def call_github_tool(
+        self, 
+        tool_name: str, 
+        arguments: dict[str, Any]
+    ) -> Any:
+        """Call a GitHub MCP tool."""
+        try:
+            async with self.get_github_session() as session:
+                result = await session.call_tool(tool_name, arguments)
+                
+                if result.content and len(result.content) > 0:
+                    text_content = result.content[0]
+                    if hasattr(text_content, 'text'):
+                        try:
+                            return json.loads(text_content.text)
+                        except json.JSONDecodeError:
+                            return text_content.text
+                return result.content
+        except Exception as e:
+            logger.error(f"MCP GitHub tool call failed: {tool_name} - {e}")
+            raise
+    
+    # =========================================================================
+    # Calendly MCP
+    # =========================================================================
+    
+    @asynccontextmanager
+    async def get_calendly_session(self):
+        """Get or create a Calendly MCP session."""
+        if not settings.mcp_enabled:
+            raise RuntimeError("MCP is disabled")
+        
+        python_executable = sys.executable
+        
+        server_params = StdioServerParameters(
+            command=python_executable,
+            args=["-m", "src.mcp_servers.calendly_server"],
+            env={
+                "CALENDLY_API_KEY": settings.calendly_api_key,
+            },
+        )
+        
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                yield session
+    
+    async def call_calendly_tool(
+        self, 
+        tool_name: str, 
+        arguments: dict[str, Any]
+    ) -> Any:
+        """Call a Calendly MCP tool."""
+        try:
+            async with self.get_calendly_session() as session:
+                result = await session.call_tool(tool_name, arguments)
+                
+                if result.content and len(result.content) > 0:
+                    text_content = result.content[0]
+                    if hasattr(text_content, 'text'):
+                        try:
+                            return json.loads(text_content.text)
+                        except json.JSONDecodeError:
+                            return text_content.text
+                return result.content
+        except Exception as e:
+            logger.error(f"MCP Calendly tool call failed: {tool_name} - {e}")
+            raise
+    
+    # =========================================================================
+    # Notion MCP
+    # =========================================================================
+    
+    @asynccontextmanager
+    async def get_notion_session(self):
+        """Get or create a Notion MCP session."""
+        if not settings.mcp_enabled:
+            raise RuntimeError("MCP is disabled")
+        
+        # Import here to avoid circular imports
+        from src.tools.notion import get_timeline_database_id
+        
+        python_executable = sys.executable
+        
+        server_params = StdioServerParameters(
+            command=python_executable,
+            args=["-m", "src.mcp_servers.notion_server"],
+            env={
+                "NOTION_TOKEN": settings.notion_token,
+                "NOTION_TIMELINE_DATABASE_ID": get_timeline_database_id(),
+            },
+        )
+        
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                yield session
+    
+    async def call_notion_tool(
+        self, 
+        tool_name: str, 
+        arguments: dict[str, Any]
+    ) -> Any:
+        """Call a Notion MCP tool."""
+        try:
+            async with self.get_notion_session() as session:
+                result = await session.call_tool(tool_name, arguments)
+                
+                if result.content and len(result.content) > 0:
+                    text_content = result.content[0]
+                    if hasattr(text_content, 'text'):
+                        try:
+                            return json.loads(text_content.text)
+                        except json.JSONDecodeError:
+                            return text_content.text
+                return result.content
+        except Exception as e:
+            logger.error(f"MCP Notion tool call failed: {tool_name} - {e}")
+            raise
+    
+    # =========================================================================
+    # Google Docs MCP
+    # =========================================================================
+    
+    @asynccontextmanager
+    async def get_google_docs_session(self):
+        """Get or create a Google Docs MCP session."""
+        if not settings.mcp_enabled:
+            raise RuntimeError("MCP is disabled")
+        
+        python_executable = sys.executable
+        
+        server_params = StdioServerParameters(
+            command=python_executable,
+            args=["-m", "src.mcp_servers.google_docs_server"],
+            env={
+                "GOOGLE_SERVICE_ACCOUNT_JSON": settings.google_service_account_json,
+            },
+        )
+        
+        async with stdio_client(server_params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                yield session
+    
+    async def call_google_docs_tool(
+        self, 
+        tool_name: str, 
+        arguments: dict[str, Any]
+    ) -> Any:
+        """Call a Google Docs MCP tool."""
+        try:
+            async with self.get_google_docs_session() as session:
+                result = await session.call_tool(tool_name, arguments)
+                
+                if result.content and len(result.content) > 0:
+                    text_content = result.content[0]
+                    if hasattr(text_content, 'text'):
+                        try:
+                            return json.loads(text_content.text)
+                        except json.JSONDecodeError:
+                            return text_content.text
+                return result.content
+        except Exception as e:
+            logger.error(f"MCP Google Docs tool call failed: {tool_name} - {e}")
+            raise
 
 
 # Global singleton instance

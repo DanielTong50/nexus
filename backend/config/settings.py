@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     mcp_enabled: bool = True
     slack_bot_token: str = ""
     slack_signing_secret: str = ""
+    slack_allowed_channels: str = ""  # Comma-separated list of allowed channels
     google_service_account_json: str = ""
     google_sheets_spreadsheet_id: str = ""
     github_token: str = ""
@@ -59,8 +60,8 @@ class Settings(BaseSettings):
     
     # OAuth Security
     oauth_redirect_base_url: str = "http://localhost:8000"
-    token_encryption_key: str = ""  # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-    oauth_state_secret: str = ""  # Auto-generated if not set
+    token_encryption_key: str = ""  
+    oauth_state_secret: str = ""  
 
     # Server
     host: str = "0.0.0.0"
