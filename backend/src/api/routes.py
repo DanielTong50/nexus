@@ -406,45 +406,63 @@ async def check_agents_health() -> dict:
 
 @router.get("/data/partnerships")
 async def get_partnerships_data() -> dict:
-    """Get partnerships data for the Partnerships view."""
-    from src.tools.google_sheets import MOCK_PARTNERSHIPS
+    """Get partnerships data for the Partnerships view.
 
+    Fetches from Google Sheets (via MCP) with MongoDB as cache/fallback.
+    """
+    from src.tools.google_sheets import _get_sheet_data
+
+    # Get sponsors from Google Sheets/MongoDB
     sponsors = []
-    for row in MOCK_PARTNERSHIPS.get("Boothing Companies", [])[1:]:
-        if len(row) >= 6:
-            sponsors.append({
-                "company": row[0],
-                "contact": row[1],
-                "email": row[2],
-                "position": row[3],
-                "status": row[4],
-                "tier": row[5],
-                "notes": row[6] if len(row) > 6 else "",
-            })
+    try:
+        sponsor_data = await _get_sheet_data("Boothing Companies")
+        for row in sponsor_data[1:]:  # Skip header
+            if len(row) >= 5:
+                sponsors.append({
+                    "company": row[0] if len(row) > 0 else "",
+                    "contact": row[1] if len(row) > 1 else "",
+                    "email": row[2] if len(row) > 2 else "",
+                    "position": row[3] if len(row) > 3 else "",
+                    "status": row[4] if len(row) > 4 else "",
+                    "tier": row[5] if len(row) > 5 else "",
+                    "notes": row[6] if len(row) > 6 else "",
+                })
+    except Exception as e:
+        logger.error(f"Failed to get sponsors: {e}")
 
+    # Get judges
     judges = []
-    for row in MOCK_PARTNERSHIPS.get("Judges", [])[1:]:
-        if len(row) >= 6:
-            judges.append({
-                "company": row[0],
-                "contact": row[1],
-                "email": row[2],
-                "position": row[3],
-                "status": row[4],
-                "role": row[5],
-            })
+    try:
+        judge_data = await _get_sheet_data("Judges")
+        for row in judge_data[1:]:
+            if len(row) >= 5:
+                judges.append({
+                    "company": row[0] if len(row) > 0 else "",
+                    "contact": row[1] if len(row) > 1 else "",
+                    "email": row[2] if len(row) > 2 else "",
+                    "position": row[3] if len(row) > 3 else "",
+                    "status": row[4] if len(row) > 4 else "",
+                    "role": row[5] if len(row) > 5 else "",
+                })
+    except Exception as e:
+        logger.error(f"Failed to get judges: {e}")
 
+    # Get mentors
     mentors = []
-    for row in MOCK_PARTNERSHIPS.get("Mentors", [])[1:]:
-        if len(row) >= 6:
-            mentors.append({
-                "company": row[0],
-                "contact": row[1],
-                "email": row[2],
-                "position": row[3],
-                "status": row[4],
-                "role": row[5],
-            })
+    try:
+        mentor_data = await _get_sheet_data("Mentors")
+        for row in mentor_data[1:]:
+            if len(row) >= 5:
+                mentors.append({
+                    "company": row[0] if len(row) > 0 else "",
+                    "contact": row[1] if len(row) > 1 else "",
+                    "email": row[2] if len(row) > 2 else "",
+                    "position": row[3] if len(row) > 3 else "",
+                    "status": row[4] if len(row) > 4 else "",
+                    "role": row[5] if len(row) > 5 else "",
+                })
+    except Exception as e:
+        logger.error(f"Failed to get mentors: {e}")
 
     return {
         "sponsors": sponsors,
@@ -452,28 +470,90 @@ async def get_partnerships_data() -> dict:
         "mentors": mentors,
         "summary": {
             "total_sponsors": len(sponsors),
-            "confirmed": sum(1 for s in sponsors if s["status"] == "Confirmed"),
-            "pending": sum(1 for s in sponsors if s["status"] == "Pending"),
-            "in_discussion": sum(1 for s in sponsors if s["status"] == "In Discussion"),
+            "confirmed": sum(1 for s in sponsors if s.get("status", "").lower() == "confirmed"),
+            "pending": sum(1 for s in sponsors if s.get("status", "").lower() == "pending"),
+            "in_discussion": sum(1 for s in sponsors if s.get("status", "").lower() == "in discussion"),
         },
     }
 
 
 @router.get("/data/finance")
 async def get_finance_data() -> dict:
-    """Get finance data for the Finance view."""
-    from src.tools.finance import MOCK_BUDGET
+    """Get finance data for the Finance view.
+
+    Pulls sponsorship data from Google Sheets/MongoDB to calculate totals.
+    """
+    from src.tools.google_sheets import _get_sheet_data
+    from src.services.database import db_service
+
+    # Tier amounts
+    tier_amounts = {
+        "Platinum Sponsor": 25000,
+        "Gold Sponsor": 15000,
+        "Silver Sponsor": 5000,
+        "Bronze Sponsor": 2500,
+    }
+
+    # Get sponsor data
+    tier_counts = {"Platinum": 0, "Gold": 0, "Silver": 0, "Bronze": 0}
+    confirmed_total = 0
+    pending_total = 0
+
+    try:
+        sponsor_data = await _get_sheet_data("Boothing Companies")
+        for row in sponsor_data[1:]:
+            if len(row) >= 6:
+                status = row[4] if len(row) > 4 else ""
+                role = row[5] if len(row) > 5 else ""
+                amount = tier_amounts.get(role, 0)
+
+                # Count tiers
+                for tier in tier_counts.keys():
+                    if tier in role:
+                        tier_counts[tier] += 1
+
+                if status == "Confirmed":
+                    confirmed_total += amount
+                elif status in ["Pending", "In Discussion"]:
+                    pending_total += amount
+    except Exception as e:
+        logger.error(f"Failed to get finance data: {e}")
+
+    # Get budget from MongoDB or use defaults
+    total_expenses = 43000
+    budget = {
+        "total_budget": 100000,
+        "confirmed_sponsorship": confirmed_total,
+        "pending_sponsorship": pending_total,
+        "expenses": {
+            "venue": 15000,
+            "catering": 8000,
+            "marketing": 5000,
+            "swag": 3000,
+            "prizes": 10000,
+            "misc": 2000,
+        },
+        "remaining": confirmed_total - total_expenses,
+    }
+
+    try:
+        collection = db_service.db["budget"]
+        stored_budget = await collection.find_one({"event_name": "Blueprint"})
+        if stored_budget:
+            budget["expenses"] = stored_budget.get("expenses", budget["expenses"])
+    except Exception as e:
+        logger.error(f"Failed to get budget from MongoDB: {e}")
 
     return {
-        "budget": MOCK_BUDGET,
+        "budget": budget,
         "tiers": {
-            "Platinum": {"count": 1, "amount": 25000, "total": 25000},
-            "Gold": {"count": 2, "amount": 15000, "total": 30000},
-            "Silver": {"count": 2, "amount": 5000, "total": 10000},
+            "Platinum": {"count": tier_counts["Platinum"], "amount": 25000, "total": tier_counts["Platinum"] * 25000},
+            "Gold": {"count": tier_counts["Gold"], "amount": 15000, "total": tier_counts["Gold"] * 15000},
+            "Silver": {"count": tier_counts["Silver"], "amount": 5000, "total": tier_counts["Silver"] * 5000},
         },
         "goal": 100000,
-        "confirmed_total": 65000,
-        "pending_total": 15000,
+        "confirmed_total": confirmed_total,
+        "pending_total": pending_total,
     }
 
 

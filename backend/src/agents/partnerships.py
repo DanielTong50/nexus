@@ -169,6 +169,5 @@ class PartnershipsAgent(BaseAgent):
             logger.error(f"Partnerships agent error: {e}")
             return self._create_error_result(str(e))
 
-
 # Create singleton instance
 partnerships_agent = PartnershipsAgent()
