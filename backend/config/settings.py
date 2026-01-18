@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     mcp_enabled: bool = True
     slack_bot_token: str = ""
     slack_signing_secret: str = ""
+    slack_allowed_channels: str = ""  # Comma-separated list of allowed channels
     google_service_account_json: str = ""
     google_sheets_spreadsheet_id: str = ""
     github_token: str = ""
