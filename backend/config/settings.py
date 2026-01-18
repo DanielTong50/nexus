@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     ACTIVE_AGENT_PROVIDER: Literal["gemini", "vultr"] = "gemini"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=("../.env", ".env"),  # Look in parent (project root) first, then current
         env_file_encoding="utf-8",
         extra="ignore",
         populate_by_name=True  # Allow both alias and field name
