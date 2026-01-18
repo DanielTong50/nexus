@@ -31,8 +31,6 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
-    "ruff>=0.8.0",
-]
 
 [build-system]
 requires = ["hatchling"]
@@ -44,7 +42,3 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
-
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
