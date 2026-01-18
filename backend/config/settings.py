@@ -23,7 +23,13 @@ class Settings(BaseSettings):
         default="development", alias="APP_ENV"
     )
     debug: bool = True
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: List[str] = Field(
+        default=[
+            "http://localhost:3000",
+            "http://localhost:3001",
+        ],
+        alias="CORS_ORIGINS"
+    )
 
     # MongoDB
     mongodb_uri: str = Field(default="mongodb://localhost:27017", alias="MONGODB_URI")

@@ -41,10 +41,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Setup
+# CORS Setup - Allow Netlify and Railway domains
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"https://.*\.(netlify\.app|railway\.app)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
