@@ -1,7 +1,7 @@
-"""Router node for dispatching requests to specialized agents.
+"""Router logic for dispatching requests to agents.
 
-The router takes the classification output and creates agent assignments
-with sub-prompts for parallel execution.
+Determines which agents should handle a request and creates
+agent-specific sub-prompts.
 """
 
 import logging
@@ -14,45 +14,36 @@ from src.models.state import GraphState
 logger = logging.getLogger(__name__)
 
 # Valid agent names
-VALID_AGENTS = ["partnerships", "marketing", "finance", "events", "developers"]
-
-# Type for routing decisions
-AgentName = Literal["partnerships", "marketing", "finance", "events", "developers"]
+VALID_AGENTS = {"partnerships", "marketing", "finance", "events", "developers"}
 
 
 class AgentAssignment(BaseModel):
-    """Assignment of a task to a specific agent."""
+    """Assignment of a task to an agent."""
 
-    agent_name: AgentName = Field(description="Name of the assigned agent")
-    sub_prompt: str = Field(description="Specific task for this agent")
-    priority: int = Field(default=1, ge=1, le=5, description="Execution priority (1=highest)")
+    agent_name: str = Field(description="Name of the agent")
+    sub_prompt: str = Field(description="Agent-specific prompt")
+    priority: int = Field(default=1, description="Execution priority")
 
 
 class RouterOutput(BaseModel):
-    """Output from the router containing all agent assignments."""
+    """Output from the router node."""
 
-    assignments: list[AgentAssignment] = Field(
-        default_factory=list,
-        description="List of agent assignments for parallel execution"
-    )
-    should_execute_parallel: bool = Field(
-        default=True,
-        description="Whether agents should run in parallel"
-    )
+    assignments: list[AgentAssignment] = Field(default_factory=list)
+    should_execute_parallel: bool = Field(default=True)
 
 
 def get_agent_sub_prompt(agent_name: str, user_message: str) -> str:
-    """Generate a sub-prompt for a specific agent based on the user's message.
+    """Generate an agent-specific sub-prompt.
 
     Args:
-        agent_name: The agent to generate a sub-prompt for
-        user_message: The original user message
+        agent_name: Name of the agent
+        user_message: Original user message
 
     Returns:
-        A tailored sub-prompt for the agent
+        Sub-prompt tailored for the agent
     """
-    # For now, pass the full message to each agent
-    # In the future, this could use LLM to decompose into specific tasks
+    # For now, return the full message
+    # Backend Dev 2 can enhance this with LLM-based decomposition
     return user_message
 
 
@@ -63,7 +54,7 @@ def create_agent_assignments(
     """Create assignments for all target agents.
 
     Args:
-        target_agents: List of agent names from classifier
+        target_agents: List of agent names
         user_message: Original user message
 
     Returns:
@@ -73,14 +64,14 @@ def create_agent_assignments(
 
     for agent_name in target_agents:
         if agent_name not in VALID_AGENTS:
-            logger.warning(f"Invalid agent name: {agent_name}")
+            logger.warning(f"Skipping invalid agent: {agent_name}")
             continue
 
         sub_prompt = get_agent_sub_prompt(agent_name, user_message)
         assignment = AgentAssignment(
             agent_name=agent_name,
             sub_prompt=sub_prompt,
-            priority=1,  # All agents same priority for parallel execution
+            priority=1,
         )
         assignments.append(assignment)
 
@@ -90,101 +81,68 @@ def create_agent_assignments(
 def route_to_agents(
     state: GraphState,
 ) -> Literal["partnerships", "marketing", "finance", "events", "developers", "aggregate"]:
-    """Route to appropriate agent node based on classification.
-
-    This is a simple router that returns the first agent for sequential execution.
-    For parallel execution, see `route_to_all_agents`.
-
-    Args:
-        state: Current graph state with target_agents populated
-
-    Returns:
-        Next node to execute
-    """
-    if not state.target_agents:
-        logger.info("No target agents, skipping to aggregation")
-        return "aggregate"
-
-    # Return first valid agent
-    for agent in state.target_agents:
-        if agent in VALID_AGENTS:
-            logger.info(f"Routing to agent: {agent}")
-            return agent
-
-    logger.warning("No valid agents found, skipping to aggregation")
-    return "aggregate"
-
-
-def get_all_target_agents(state: GraphState) -> list[str]:
-    """Get all valid target agents from state.
+    """Route to the first valid agent (for sequential execution).
 
     Args:
         state: Current graph state
 
     Returns:
-        List of valid agent names
+        Name of the next node to execute
     """
-    return [a for a in state.target_agents if a in VALID_AGENTS]
+    target_agents = state.target_agents
 
+    if not target_agents:
+        return "aggregate"
 
-def should_run_agent(agent_name: str) -> callable:
-    """Create a condition function for checking if an agent should run.
+    # Filter to valid agents
+    valid_targets = [a for a in target_agents if a in VALID_AGENTS]
 
-    Args:
-        agent_name: The agent to check for
+    if not valid_targets:
+        return "aggregate"
 
-    Returns:
-        Function that checks if the agent is in target_agents
-    """
-    def check(state: GraphState) -> bool:
-        return agent_name in state.target_agents
-    return check
+    # Return first agent for sequential mode
+    return valid_targets[0]
 
 
 async def router_node(state: GraphState) -> dict:
-    """Router node that creates agent assignments for parallel execution.
+    """Router node for the workflow graph.
 
-    This node processes the classifier output and prepares assignments
-    for each target agent.
+    Creates agent assignments for parallel execution.
 
     Args:
-        state: Current graph state with target_agents populated
+        state: Current graph state
 
     Returns:
-        Dict with router_output containing agent assignments
+        Dict with router_output
     """
-    target_agents = state.target_agents
-    user_message = state.user_message
+    assignments = create_agent_assignments(
+        target_agents=state.target_agents,
+        user_message=state.user_message,
+    )
 
-    if not target_agents:
-        logger.info("No target agents to route")
-        return {"router_output": RouterOutput(assignments=[])}
+    output = RouterOutput(
+        assignments=assignments,
+        should_execute_parallel=len(assignments) > 1,
+    )
 
-    # Create assignments for all agents
-    assignments = create_agent_assignments(target_agents, user_message)
+    logger.info(f"Router created {len(assignments)} assignments, parallel={output.should_execute_parallel}")
 
-    logger.info(f"Created {len(assignments)} agent assignments: {[a.agent_name for a in assignments]}")
+    return {"router_output": output}
 
-    return {
-        "router_output": RouterOutput(
-            assignments=assignments,
-            should_execute_parallel=len(assignments) > 1,
-        )
-    }
+
+# Helper functions
+
+def get_all_target_agents(state: GraphState) -> list[str]:
+    """Get all valid target agents from state."""
+    return [a for a in state.target_agents if a in VALID_AGENTS]
 
 
 def get_parallel_agent_nodes(state: GraphState) -> list[str]:
-    """Determine which agent nodes should execute in parallel.
+    """Get agent nodes for parallel execution."""
+    agents = get_all_target_agents(state)
+    return agents if agents else ["aggregate"]
 
-    Args:
-        state: Current graph state with target_agents
 
-    Returns:
-        List of agent node names to execute
-    """
-    valid_agents = [a for a in state.target_agents if a in VALID_AGENTS]
-
-    if not valid_agents:
-        return ["aggregate"]
-
-    return valid_agents
+def should_run_agent(state: GraphState, agent_name: str) -> bool:
+    """Check if a specific agent should run."""
+    return agent_name in state.target_agents and agent_name in VALID_AGENTS

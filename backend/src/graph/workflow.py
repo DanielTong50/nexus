@@ -5,40 +5,52 @@ This module defines the workflow graph that:
 2. Routes to appropriate agents
 3. Executes agents in parallel using asyncio.gather
 4. Aggregates results
+
+Dual-Engine LLM Strategy:
+- Classifier: Always Gemini 1.5 Pro
+- Agents: Configurable via ACTIVE_AGENT_PROVIDER (Gemini Flash or Vultr/Llama)
 """
 
 import asyncio
 import logging
 import time
-from typing import Literal
+from typing import Any, Literal, Optional
 
 from langgraph.graph import END, StateGraph
 
-from src.graph.classifier import classify_request
-from src.graph.router import route_to_agents, VALID_AGENTS
+from config.settings import settings
 from src.models.state import AgentResult, GraphState
 
 logger = logging.getLogger(__name__)
 
-# Agent runner registry - maps agent names to their execution functions
-AGENT_RUNNERS = {}
+# Valid agent names
+VALID_AGENTS = {"partnerships", "marketing", "finance", "events", "developers"}
+
+# Agent runner registry
+AGENT_RUNNERS: dict[str, Any] = {}
 
 
 def register_agent(name: str):
     """Decorator to register an agent runner function."""
+
     def decorator(func):
         AGENT_RUNNERS[name] = func
         return func
+
     return decorator
+
+
+# =============================================================================
+# Placeholder Agent Runners (Backend Dev 2 will implement actual agents)
+# =============================================================================
 
 
 @register_agent("partnerships")
 async def run_partnerships_agent(state: GraphState) -> dict:
     """Execute the partnerships agent."""
     start_time = time.time()
-    # Simulate some async work
-    await asyncio.sleep(0.01)
-    
+    await asyncio.sleep(0.01)  # Simulate work
+
     result = AgentResult(
         agent_name="partnerships",
         status="success",
@@ -54,7 +66,7 @@ async def run_marketing_agent(state: GraphState) -> dict:
     """Execute the marketing agent."""
     start_time = time.time()
     await asyncio.sleep(0.01)
-    
+
     result = AgentResult(
         agent_name="marketing",
         status="success",
@@ -70,7 +82,7 @@ async def run_finance_agent(state: GraphState) -> dict:
     """Execute the finance agent."""
     start_time = time.time()
     await asyncio.sleep(0.01)
-    
+
     result = AgentResult(
         agent_name="finance",
         status="success",
@@ -86,7 +98,7 @@ async def run_events_agent(state: GraphState) -> dict:
     """Execute the events agent."""
     start_time = time.time()
     await asyncio.sleep(0.01)
-    
+
     result = AgentResult(
         agent_name="events",
         status="success",
@@ -102,7 +114,7 @@ async def run_developers_agent(state: GraphState) -> dict:
     """Execute the developers agent."""
     start_time = time.time()
     await asyncio.sleep(0.01)
-    
+
     result = AgentResult(
         agent_name="developers",
         status="success",
@@ -113,11 +125,13 @@ async def run_developers_agent(state: GraphState) -> dict:
     return {"agent_results": [result], "completed_agents": ["developers"]}
 
 
+# =============================================================================
+# Parallel Agent Execution
+# =============================================================================
+
+
 async def run_agents_parallel(state: GraphState) -> dict:
     """Execute all target agents in parallel using asyncio.gather.
-
-    This node runs all agents specified in target_agents concurrently,
-    then merges their results.
 
     Args:
         state: Current graph state with target_agents populated
@@ -134,65 +148,70 @@ async def run_agents_parallel(state: GraphState) -> dict:
     logger.info(f"Executing {len(target_agents)} agents in parallel: {target_agents}")
     start_time = time.time()
 
-    # Create tasks for all target agents
+    # Create tasks
     tasks = []
     for agent_name in target_agents:
         if agent_name in AGENT_RUNNERS:
             tasks.append(AGENT_RUNNERS[agent_name](state))
         else:
-            logger.warning(f"No runner found for agent: {agent_name}")
+            logger.warning(f"No runner for agent: {agent_name}")
 
-    # Execute all agents in parallel
+    # Execute in parallel
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
     # Merge results
-    all_agent_results = []
-    all_completed_agents = []
+    all_results = []
+    all_completed = []
     errors = []
 
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             logger.error(f"Agent {target_agents[i]} failed: {result}")
-            errors.append({
-                "agent": target_agents[i],
-                "error": str(result),
-            })
-            # Create error result for failed agent
-            all_agent_results.append(AgentResult(
-                agent_name=target_agents[i],
-                status="error",
-                message=f"Agent failed: {str(result)}",
-            ))
+            errors.append({"agent": target_agents[i], "error": str(result)})
+            all_results.append(
+                AgentResult(
+                    agent_name=target_agents[i],
+                    status="error",
+                    message=str(result),
+                )
+            )
         else:
-            all_agent_results.extend(result.get("agent_results", []))
-            all_completed_agents.extend(result.get("completed_agents", []))
+            all_results.extend(result.get("agent_results", []))
+            all_completed.extend(result.get("completed_agents", []))
 
     total_time = time.time() - start_time
-    logger.info(f"Parallel execution completed in {total_time:.3f}s for {len(target_agents)} agents")
+    logger.info(f"Parallel execution completed in {total_time:.3f}s")
 
-    output = {
-        "agent_results": all_agent_results,
-        "completed_agents": all_completed_agents,
-    }
-
+    output = {"agent_results": all_results, "completed_agents": all_completed}
     if errors:
         output["errors"] = errors
 
     return output
 
 
+# =============================================================================
+# Workflow Nodes
+# =============================================================================
+
+
+async def classify_node(state: GraphState) -> dict:
+    """Classifier node - routes to the classifier."""
+    from src.graph.classifier import classify_request
+
+    return await classify_request(state)
+
+
 def should_run_parallel(state: GraphState) -> Literal["parallel_agents", "aggregate"]:
-    """Determine if we should run agents in parallel or skip to aggregation.
-
-    Args:
-        state: Current graph state
-
-    Returns:
-        "parallel_agents" if there are agents to run, "aggregate" otherwise
-    """
+    """Determine if we should run agents or skip to aggregation."""
     if state.target_agents:
         return "parallel_agents"
     return "aggregate"
+
+
+async def aggregate_results(state: GraphState) -> dict:
+    """Aggregate results from all executed agents."""
+    logger.info(f"Aggregation: {len(state.agent_results)} results from {len(state.completed_agents)} agents")
+    return {}
 
 
 async def handle_error(state: GraphState) -> dict:
@@ -201,28 +220,13 @@ async def handle_error(state: GraphState) -> dict:
     return {"errors": state.errors}
 
 
-async def aggregate_results(state: GraphState) -> dict:
-    """Aggregate results from all executed agents.
-
-    Args:
-        state: Current graph state with agent_results populated
-
-    Returns:
-        Empty dict (results already in state)
-    """
-    agent_count = len(state.agent_results)
-    completed_count = len(state.completed_agents)
-    logger.info(f"Aggregation complete: {agent_count} results from {completed_count} agents")
-    return {}
+# =============================================================================
+# Graph Definition
+# =============================================================================
 
 
 def create_workflow() -> StateGraph:
-    """Create and compile the LangGraph workflow with parallel execution.
-
-    The workflow structure:
-    1. classify: Analyze request and determine target agents
-    2. parallel_agents: Execute all target agents concurrently
-    3. aggregate: Merge and finalize results
+    """Create and compile the LangGraph workflow.
 
     Returns:
         Compiled StateGraph ready for execution.
@@ -230,7 +234,7 @@ def create_workflow() -> StateGraph:
     workflow = StateGraph(GraphState)
 
     # Add nodes
-    workflow.add_node("classify", classify_request)
+    workflow.add_node("classify", classify_node)
     workflow.add_node("parallel_agents", run_agents_parallel)
     workflow.add_node("error_handler", handle_error)
     workflow.add_node("aggregate", aggregate_results)
@@ -238,7 +242,7 @@ def create_workflow() -> StateGraph:
     # Set entry point
     workflow.set_entry_point("classify")
 
-    # Route from classifier to parallel execution or aggregate
+    # Route from classifier
     workflow.add_conditional_edges(
         "classify",
         should_run_parallel,
@@ -260,70 +264,34 @@ def create_workflow() -> StateGraph:
     return workflow.compile()
 
 
-def create_sequential_workflow() -> StateGraph:
-    """Create workflow with sequential agent execution (for comparison/fallback).
-
-    Returns:
-        Compiled StateGraph with sequential execution.
-    """
-    workflow = StateGraph(GraphState)
-
-    # Add nodes
-    workflow.add_node("classify", classify_request)
-    workflow.add_node("partnerships", run_partnerships_agent)
-    workflow.add_node("marketing", run_marketing_agent)
-    workflow.add_node("finance", run_finance_agent)
-    workflow.add_node("events", run_events_agent)
-    workflow.add_node("developers", run_developers_agent)
-    workflow.add_node("error_handler", handle_error)
-    workflow.add_node("aggregate", aggregate_results)
-
-    # Set entry point
-    workflow.set_entry_point("classify")
-
-    # Add conditional edges from classifier (sequential - first agent only)
-    workflow.add_conditional_edges(
-        "classify",
-        route_to_agents,
-        {
-            "partnerships": "partnerships",
-            "marketing": "marketing",
-            "finance": "finance",
-            "events": "events",
-            "developers": "developers",
-            "aggregate": "aggregate",
-        },
-    )
-
-    # Connect agent nodes to aggregation
-    for agent in ["partnerships", "marketing", "finance", "events", "developers"]:
-        workflow.add_edge(agent, "aggregate")
-
-    workflow.add_edge("error_handler", END)
-    workflow.add_edge("aggregate", END)
-
-    return workflow.compile()
+# Create compiled workflow instance
+graph = create_workflow()
 
 
-# Create the compiled workflow instances
-graph = create_workflow()  # Default: parallel execution
-sequential_graph = create_sequential_workflow()  # For comparison
+# =============================================================================
+# Convenience Functions
+# =============================================================================
 
 
-# Convenience function for running the parallel workflow
-async def run_workflow(user_message: str, request_id: str = "default") -> GraphState:
-    """Run the parallel workflow with a user message.
+async def run_workflow(
+    user_message: str,
+    request_id: str = "default",
+    event_id: Optional[str] = None,
+) -> dict:
+    """Run the workflow with a user message.
 
     Args:
         user_message: The user's input message
         request_id: Unique identifier for this request
+        event_id: Optional event context
 
     Returns:
-        Final GraphState with all results
+        Dict with workflow results
     """
     initial_state = GraphState(
         request_id=request_id,
         user_message=user_message,
+        event_id=event_id,
     )
 
     result = await graph.ainvoke(initial_state)

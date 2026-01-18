@@ -1,55 +1,72 @@
-"""LangGraph state schemas for workflow execution."""
+"""LangGraph state definitions.
 
-from typing import Annotated, Literal, Optional
+Defines the graph state that flows through the workflow.
+"""
 
+from typing import Annotated, Any, Literal, Optional
+
+from langchain_core.messages import BaseMessage
 from pydantic import BaseModel, Field
 
 
-def merge_lists(left: list, right: list) -> list:
-    """Reducer function to merge lists in graph state."""
+def add_messages(left: list[BaseMessage], right: list[BaseMessage]) -> list[BaseMessage]:
+    """Reducer that appends messages."""
+    return left + right
+
+
+def add_errors(left: list[str], right: list[str]) -> list[str]:
+    """Reducer that appends errors."""
     return left + right
 
 
 class AgentResult(BaseModel):
-    """Result from a single agent execution."""
+    """Result from an agent execution."""
 
-    agent_name: str = Field(description="Name of the agent that produced this result")
-    status: Literal["success", "error", "partial"] = Field(description="Execution status")
-    message: str = Field(description="Human-readable result message")
-    data: Optional[dict] = Field(default=None, description="Structured result data")
-    tool_calls: list[dict] = Field(default_factory=list, description="Tools invoked by agent")
+    agent_name: str = Field(description="Name of the agent")
+    status: Literal["success", "error", "pending_approval"] = Field(default="success")
+    message: str = Field(default="", description="Result message")
+    data: Optional[dict[str, Any]] = Field(default=None, description="Result data")
+    tool_calls: list[dict] = Field(default_factory=list, description="Tools invoked")
+    requires_approval: bool = Field(default=False, description="Needs HITL approval")
 
 
 class GraphState(BaseModel):
-    """State schema for the LangGraph workflow.
+    """State that flows through the LangGraph workflow.
 
-    This state is passed through the graph and accumulated as agents execute.
+    Attributes:
+        request_id: Unique identifier for this request
+        user_message: Original user input
+        event_id: Optional event context (e.g., "blueprint-2025")
+        messages: Conversation history
+        next_step: Current routing decision
+        target_agents: Agents to invoke
+        agent_results: Results from agent executions
+        completed_agents: Agents that have finished
+        errors: Error messages collected during execution
+        context: Additional context for agents
     """
 
-    # Input
-    request_id: str = Field(description="Unique identifier for this request")
-    user_message: str = Field(description="Original user message")
-    context: dict = Field(default_factory=dict, description="Additional context")
+    # Request info
+    request_id: str = Field(default="", description="Unique request identifier")
+    user_message: str = Field(default="", description="Original user message")
+    event_id: Optional[str] = Field(default=None, description="Event context")
 
-    # Classification
-    target_agents: list[str] = Field(
-        default_factory=list, description="Agents selected by classifier"
-    )
+    # Conversation state
+    messages: Annotated[list[BaseMessage], add_messages] = Field(default_factory=list)
 
-    # Execution - using Annotated for reducer
-    agent_results: Annotated[list[AgentResult], merge_lists] = Field(
-        default_factory=list, description="Results from agent executions"
-    )
+    # Routing state
+    next_step: str = Field(default="classify", description="Next node to execute")
+    target_agents: list[str] = Field(default_factory=list, description="Agents to invoke")
 
-    # Error handling
-    errors: Annotated[list[dict], merge_lists] = Field(
-        default_factory=list, description="Errors encountered during execution"
-    )
+    # Execution results
+    agent_results: list[AgentResult] = Field(default_factory=list)
+    completed_agents: list[str] = Field(default_factory=list)
 
-    # Metadata
-    current_agent: Optional[str] = Field(
-        default=None, description="Currently executing agent"
-    )
-    completed_agents: list[str] = Field(
-        default_factory=list, description="Agents that have completed"
-    )
+    # Error tracking
+    errors: Annotated[list[str], add_errors] = Field(default_factory=list)
+
+    # Context
+    context: dict[str, Any] = Field(default_factory=dict, description="Additional context")
+
+    class Config:
+        arbitrary_types_allowed = True

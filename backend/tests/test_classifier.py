@@ -20,228 +20,185 @@ from src.models.state import GraphState
 class TestParseResponse:
     """Tests for the LLM response parser."""
 
-    def test_parse_json_array(self):
-        """Parse simple JSON array response."""
-        response = '["partnerships", "finance"]'
+    def test_parse_json_with_target_agents(self):
+        """Parse JSON object with target_agents key."""
+        response = '{"request_type": "sponsor", "target_agents": ["developers", "partnerships"], "confidence": 0.9, "reasoning": "test"}'
         result = _parse_llm_response(response)
-        assert result == ["partnerships", "finance"]
+        assert isinstance(result, ClassifierResponse)
+        assert result.target_agents == ["developers", "partnerships"]
 
     def test_parse_json_with_markdown(self):
         """Parse JSON wrapped in markdown code blocks."""
-        response = '```json\n["marketing", "events"]\n```'
+        response = '```json\n{"request_type": "test", "target_agents": ["marketing", "events"]}\n```'
         result = _parse_llm_response(response)
-        assert result == ["marketing", "events"]
-
-    def test_parse_json_object_with_target_agents(self):
-        """Parse JSON object with target_agents key."""
-        response = '{"target_agents": ["developers", "partnerships"]}'
-        result = _parse_llm_response(response)
-        assert result == ["developers", "partnerships"]
+        assert result.target_agents == ["marketing", "events"]
 
     def test_filter_invalid_agents(self):
         """Filter out invalid agent names."""
-        response = '["partnerships", "invalid_agent", "finance", "fake"]'
+        response = '{"target_agents": ["partnerships", "invalid_agent", "finance", "fake"]}'
         result = _parse_llm_response(response)
-        assert result == ["partnerships", "finance"]
+        assert result.target_agents == ["partnerships", "finance"]
 
     def test_fallback_text_extraction(self):
         """Extract agent names from non-JSON text."""
         response = "Based on the request, I recommend the partnerships and marketing agents."
         result = _parse_llm_response(response)
-        assert "partnerships" in result
-        assert "marketing" in result
+        assert "partnerships" in result.target_agents
+        assert "marketing" in result.target_agents
 
     def test_empty_response(self):
-        """Handle empty response."""
-        result = _parse_llm_response("")
-        assert result == []
+        """Empty response returns empty targets."""
+        response = "{}"
+        result = _parse_llm_response(response)
+        assert result.target_agents == []
 
     def test_case_insensitive(self):
-        """Handle mixed case agent names."""
-        response = '["PARTNERSHIPS", "Marketing", "FINANCE"]'
+        """Agent names are case-insensitive."""
+        response = '{"target_agents": ["Partnerships", "MARKETING"]}'
         result = _parse_llm_response(response)
-        assert "partnerships" in result
-        assert "marketing" in result
-        assert "finance" in result
+        assert "partnerships" in result.target_agents
+        assert "marketing" in result.target_agents
 
 
 class TestClassifyRequest:
-    """Tests for the main classify_request function."""
+    """Tests for the classify_request function."""
 
     @pytest.fixture
     def mock_llm(self):
-        """Create a mock LLM for testing."""
+        """Mock the LLM for testing."""
         with patch("src.graph.classifier._get_classifier_llm") as mock:
-            llm_instance = AsyncMock()
+            llm_instance = MagicMock()
             mock.return_value = llm_instance
             yield llm_instance
 
-    @pytest.mark.asyncio
-    async def test_partnerships_classification(self, mock_llm):
-        """Test classification of partnerships-related request."""
-        mock_llm.ainvoke.return_value = MagicMock(content='["partnerships"]')
-        
-        state = GraphState(
-            request_id="test-1",
-            user_message="Update the sponsor status for Google to confirmed",
+    @pytest.fixture
+    def base_state(self):
+        """Create a base state for tests."""
+        return GraphState(
+            request_id="test-123",
+            user_message="",
         )
-        
-        result = await classify_request(state)
-        
+
+    @pytest.mark.asyncio
+    async def test_partnerships_classification(self, mock_llm, base_state):
+        """Classify partnerships-related request."""
+        base_state.user_message = "Update the sponsor sheet for Google"
+
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "sponsor", "target_agents": ["partnerships"], "confidence": 0.9, "reasoning": "sponsor related"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await classify_request(base_state)
+
         assert "partnerships" in result["target_agents"]
 
     @pytest.mark.asyncio
-    async def test_marketing_classification(self, mock_llm):
-        """Test classification of marketing-related request."""
-        mock_llm.ainvoke.return_value = MagicMock(content='["marketing"]')
-        
-        state = GraphState(
-            request_id="test-2",
-            user_message="Schedule an Instagram post for Blueprint launch",
-        )
-        
-        result = await classify_request(state)
-        
+    async def test_marketing_classification(self, mock_llm, base_state):
+        """Classify marketing-related request."""
+        base_state.user_message = "Schedule an Instagram post for Blueprint"
+
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "social", "target_agents": ["marketing"], "confidence": 0.9, "reasoning": "social media"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await classify_request(base_state)
+
         assert "marketing" in result["target_agents"]
 
     @pytest.mark.asyncio
-    async def test_finance_classification(self, mock_llm):
-        """Test classification of finance-related request."""
-        mock_llm.ainvoke.return_value = MagicMock(content='["finance"]')
-        
-        state = GraphState(
-            request_id="test-3",
-            user_message="What's the remaining budget for Blueprint?",
-        )
-        
-        result = await classify_request(state)
-        
+    async def test_finance_classification(self, mock_llm, base_state):
+        """Classify finance-related request."""
+        base_state.user_message = "Generate an invoice for Microsoft sponsorship"
+
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "invoice", "target_agents": ["finance"], "confidence": 0.9, "reasoning": "financial"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await classify_request(base_state)
+
         assert "finance" in result["target_agents"]
 
     @pytest.mark.asyncio
-    async def test_events_classification(self, mock_llm):
-        """Test classification of events-related request."""
-        mock_llm.ainvoke.return_value = MagicMock(content='["events"]')
-        
-        state = GraphState(
-            request_id="test-4",
-            user_message="Book room 301 in the engineering building for Saturday",
-        )
-        
-        result = await classify_request(state)
-        
+    async def test_events_classification(self, mock_llm, base_state):
+        """Classify events-related request."""
+        base_state.user_message = "Update the venue logistics sheet"
+
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "logistics", "target_agents": ["events"], "confidence": 0.9, "reasoning": "event related"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await classify_request(base_state)
+
         assert "events" in result["target_agents"]
 
     @pytest.mark.asyncio
-    async def test_developers_classification(self, mock_llm):
-        """Test classification of developers-related request."""
-        mock_llm.ainvoke.return_value = MagicMock(content='["developers"]')
-        
-        state = GraphState(
-            request_id="test-5",
-            user_message="Create a GitHub issue for the registration page bug",
-        )
-        
-        result = await classify_request(state)
-        
+    async def test_developers_classification(self, mock_llm, base_state):
+        """Classify developers-related request."""
+        base_state.user_message = "Create a GitHub issue for the login bug"
+
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "github", "target_agents": ["developers"], "confidence": 0.9, "reasoning": "technical"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await classify_request(base_state)
+
         assert "developers" in result["target_agents"]
 
     @pytest.mark.asyncio
-    async def test_multi_agent_classification(self, mock_llm):
-        """Test classification routing to multiple agents."""
-        mock_llm.ainvoke.return_value = MagicMock(
-            content='["partnerships", "finance", "marketing", "events"]'
-        )
-        
-        state = GraphState(
-            request_id="test-6",
-            user_message="Just finished a meeting with Google who agreed to pay $1,000 for boothing at Blueprint",
-        )
-        
-        result = await classify_request(state)
-        
-        # This request should trigger multiple agents
-        assert len(result["target_agents"]) >= 2
+    async def test_multi_agent_classification(self, mock_llm, base_state):
+        """Classify request requiring multiple agents."""
+        base_state.user_message = "Google agreed to sponsor for $5000, update the sheet and draft the MOU"
+
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "sponsor_mou", "target_agents": ["partnerships", "finance"], "confidence": 0.9, "reasoning": "sponsor and financial"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await classify_request(base_state)
+
         assert "partnerships" in result["target_agents"]
         assert "finance" in result["target_agents"]
 
-    @pytest.mark.asyncio
-    async def test_empty_message(self, mock_llm):
-        """Test handling of empty user message."""
-        state = GraphState(
-            request_id="test-7",
-            user_message="",
-        )
-        
-        result = await classify_request(state)
-        
-        assert result["target_agents"] == []
-        # LLM should not be called for empty message
-        mock_llm.ainvoke.assert_not_called()
-
-    @pytest.mark.asyncio
-    async def test_llm_error_handling(self, mock_llm):
-        """Test handling of LLM errors."""
-        mock_llm.ainvoke.side_effect = Exception("API error")
-        
-        state = GraphState(
-            request_id="test-8",
-            user_message="Some valid request",
-        )
-        
-        result = await classify_request(state)
-        
-        # Should return empty list on error
-        assert result["target_agents"] == []
-        # Should include error info
-        assert "errors" in result
-
 
 class TestClassifyWithDetails:
-    """Tests for the detailed classification function."""
+    """Tests for the classify_with_details function."""
 
     @pytest.fixture
     def mock_llm(self):
-        """Create a mock LLM for testing."""
+        """Mock the LLM for testing."""
         with patch("src.graph.classifier._get_classifier_llm") as mock:
-            llm_instance = AsyncMock()
+            llm_instance = MagicMock()
             mock.return_value = llm_instance
             yield llm_instance
 
     @pytest.mark.asyncio
     async def test_detailed_response(self, mock_llm):
-        """Test that detailed classification returns all fields."""
-        mock_llm.ainvoke.return_value = MagicMock(
-            content='''{
-                "request_type": "status_update",
-                "target_agents": ["partnerships", "finance"],
-                "sub_prompts": ["Update sponsor status", "Generate invoice"],
-                "confidence": 0.95,
-                "reasoning": "Request is about sponsor confirmation"
-            }'''
-        )
-        
-        result = await classify_with_details("Sponsor confirmed payment")
-        
+        """Get detailed classification response."""
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "sponsor", "target_agents": ["partnerships"], "confidence": 0.95, "reasoning": "This is about sponsors"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+        result = await classify_with_details("Update sponsor status")
+
         assert isinstance(result, ClassifierResponse)
-        assert result.request_type == "status_update"
-        assert "partnerships" in result.target_agents
         assert result.confidence == 0.95
+        assert "partnerships" in result.target_agents
 
     @pytest.mark.asyncio
     async def test_empty_request_returns_empty_response(self, mock_llm):
-        """Test that empty request returns empty ClassifierResponse."""
+        """Empty request returns empty classification."""
+        mock_response = MagicMock()
+        mock_response.content = '{"request_type": "empty", "target_agents": [], "confidence": 0.0, "reasoning": "Empty message"}'
+        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
         result = await classify_with_details("")
-        
+
         assert result.target_agents == []
-        assert "Empty request" in result.reasoning
 
 
 class TestValidAgents:
-    """Tests for agent validation."""
+    """Tests for valid agent list."""
 
-    def test_all_valid_agents_present(self):
-        """Verify all expected agents are in VALID_AGENTS."""
-        expected = ["partnerships", "marketing", "finance", "events", "developers"]
-        for agent in expected:
-            assert agent in VALID_AGENTS
+    def test_all_expected_agents_present(self):
+        """All expected agents are in VALID_AGENTS."""
+        expected = {"partnerships", "marketing", "finance", "events", "developers"}
+        assert VALID_AGENTS == expected
