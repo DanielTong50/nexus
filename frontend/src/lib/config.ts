@@ -6,7 +6,8 @@
  */
 
 // API Configuration
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+export const API_URL = rawApiUrl.replace(/\/+$/, ""); // Remove trailing slashes
 export const API_BASE = `${API_URL}/api`;
 
 // API Endpoints
