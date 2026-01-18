@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import settings
 from src.api.routes import router
+from src.api.integrations import router as integrations_router
 from src.services.database import close_mongo_connection, connect_to_mongo
 
 #helps intialize it + manage lifespan
@@ -37,6 +38,7 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api")
+app.include_router(integrations_router)  # OAuth integrations
 
 #health status check
 @app.get("/health")
