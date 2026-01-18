@@ -50,14 +50,15 @@ export function LandingNavbar() {
                     {/* Right side - Social box + Sign In */}
                     <div className="hidden md:flex items-center gap-3">
                         {/* Combined GitHub / DevPost box */}
-                        <div className="h-9 px-3 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center gap-2">
+                        <div className="h-10 px-4 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center gap-3">
+                            <span className="text-sm text-white">View Source</span>
                             <a
                                 href="https://github.com/DanielTong50/nexus"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-neutral-400 hover:text-white transition-colors"
                             >
-                                <Github className="h-4 w-4" />
+                                <Github className="h-6 w-6" />
                             </a>
                             <span className="text-neutral-600">/</span>
                             <a
@@ -69,15 +70,15 @@ export function LandingNavbar() {
                                 <Image
                                     src="/photos/devpost.jpg"
                                     alt="DevPost"
-                                    width={16}
-                                    height={16}
-                                    className="h-4 w-4 rounded-sm object-contain"
+                                    width={28}
+                                    height={28}
+                                    className="h-7 w-7 rounded-sm object-contain"
                                 />
                             </a>
                         </div>
 
                         <Link href="/dashboard">
-                            <Button size="sm" className="bg-white hover:bg-slate-200 text-black">
+                            <Button className="bg-white hover:bg-slate-200 text-black font-semibold px-6 h-10 text-sm">
                                 Sign In
                             </Button>
                         </Link>
