@@ -23,22 +23,22 @@ const STEPS = [
     {
         number: "01",
         title: "Tell Nexus What You Need",
-        description: "Type a natural language request like 'Draft sponsorship emails for our hackathon'.",
+        description: "Provide a single natural language update, like \"Just finished a meeting with Google; they’re sponsoring $1,000 for Blueprint\". Our Classifier and Router nodes immediately parse your intent to trigger the appropriate workflows.",
     },
     {
         number: "02",
         title: "AI Agents Get to Work",
-        description: "The right agent team takes over — researching, drafting, and executing in real-time.",
+        description: "Specialized agents for Partnerships, Marketing, Finance, Events, and Developers execute tasks in parallel using asyncio. They simultaneously search documents, draft outreach, and update logistics without any manual intervention.",
     },
     {
         number: "03",
         title: "Review and Approve",
-        description: "For high-stakes actions, review AI suggestions, make edits, and confirm with one click.",
+        description: "For actions that impact sponsors, finances, or public-facing content, Nexus keeps humans in the loop. Generated outputs, such as MOUs, invoices, emails, or announcements are queued for review before execution. You maintain full control by reviewing, editing, and confirming AI-generated actions before they are finalized.",
     },
     {
         number: "04",
         title: "Watch It Come to Life",
-        description: "Track progress across all teams in one unified dashboard while AI handles the busywork.",
+        description: "Approved actions are instantly synced across your entire ecosystem, from Google Sheets and Slack to GitHub and Figma. Our extensible architecture is designed to scale across 30+ productivity tools, unifying your fragmented club operations into one command center.",
     },
 ];
 
@@ -133,26 +133,23 @@ function HLine({ width, delay = 0 }: { width: number; delay?: number }) {
 // Step text component
 function StepText({ step, isActive }: { step: typeof STEPS[0]; isActive: boolean }) {
     return (
-        <div className="flex items-center gap-4 whitespace-nowrap">
+        <div className="flex items-start gap-4 max-w-xl">
             <span
-                className={`text-3xl font-bold transition-all duration-500 ${
-                    isActive ? "text-white" : "text-white/20"
-                }`}
+                className={`text-3xl font-bold transition-all duration-500 flex-shrink-0 ${isActive ? "text-white" : "text-white/20"
+                    }`}
             >
                 {step.number}
             </span>
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0">
                 <h3
-                    className={`text-base font-bold transition-all duration-500 ${
-                        isActive ? "text-white" : "text-white/30"
-                    }`}
+                    className={`text-base font-bold transition-all duration-500 ${isActive ? "text-white" : "text-white/30"
+                        }`}
                 >
                     {step.title}
                 </h3>
                 <p
-                    className={`text-xs transition-all duration-500 ${
-                        isActive ? "text-slate-400" : "text-slate-500/50"
-                    }`}
+                    className={`text-xs transition-all duration-500 ${isActive ? "text-slate-400" : "text-slate-500/50"
+                        }`}
                 >
                     {step.description}
                 </p>

@@ -1,10 +1,46 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useEffect, useRef } from "react";
 
 export function DemoVideo() {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const sectionRef = useRef<HTMLElement>(null);
+
+    useEffect(() => {
+        const video = videoRef.current;
+        const section = sectionRef.current;
+
+        if (!video || !section) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (entry.isIntersecting) {
+                        // Play video when section comes into view
+                        video.play().catch(() => {
+                            // Autoplay may be blocked by browser, ignore error
+                        });
+                    } else {
+                        // Pause video when section leaves view
+                        video.pause();
+                    }
+                });
+            },
+            {
+                threshold: 0.3, // Trigger when 30% of section is visible
+            }
+        );
+
+        observer.observe(section);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+
     return (
-        <section id="demo-video" className="py-24 scroll-mt-28">
+        <section id="demo-video" className="py-24 scroll-mt-28" ref={sectionRef}>
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Section Header */}
                 <motion.div
@@ -30,37 +66,15 @@ export function DemoVideo() {
                     transition={{ duration: 0.5, delay: 0.2 }}
                     className="max-w-4xl mx-auto"
                 >
-                    <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900/50 border border-slate-700">
-                        {/* Placeholder for video */}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center">
-                                <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4 hover:bg-white/20 transition-colors cursor-pointer">
-                                    <svg
-                                        className="w-8 h-8 text-white ml-1"
-                                        fill="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path d="M8 5v14l11-7z" />
-                                    </svg>
-                                </div>
-                                <p className="text-slate-400">Demo video coming soon</p>
-                            </div>
-                        </div>
-
-                        {/* TODO: Replace with actual video embed */}
-                        {/* <video 
-                            src="/demo.mp4" 
-                            controls 
-                            className="w-full h-full object-cover"
-                        /> */}
-
-                        {/* Or YouTube embed */}
-                        {/* <iframe 
-                            src="https://www.youtube.com/embed/YOUR_VIDEO_ID" 
-                            className="w-full h-full"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                            allowFullScreen
-                        /> */}
+                    <div className="relative rounded-2xl overflow-hidden bg-slate-900/50 border border-slate-700">
+                        <video
+                            ref={videoRef}
+                            src="/photos/demo.mp4"
+                            muted
+                            loop
+                            playsInline
+                            className="w-full h-auto"
+                        />
                     </div>
                 </motion.div>
             </div>

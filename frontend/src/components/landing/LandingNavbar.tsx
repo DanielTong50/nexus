@@ -70,9 +70,9 @@ export function LandingNavbar() {
                                 <Image
                                     src="/photos/devpost.jpg"
                                     alt="DevPost"
-                                    width={28}
-                                    height={28}
-                                    className="h-7 w-7 rounded-sm object-contain"
+                                    width={32}
+                                    height={32}
+                                    className="h-9 w-9 rounded-sm object-contain"
                                 />
                             </a>
                         </div>
