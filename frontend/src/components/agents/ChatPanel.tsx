@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, Trash2, X } from "lucide-react";
+import { AlertCircle, Trash2, X, Download, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentStream } from "@/hooks/useAgentStream";
@@ -137,6 +137,15 @@ function UserMessageBubble({ message }: { message: UserMessage }) {
 
 // Assistant/agent message bubble component (left-aligned)
 function AssistantMessageBubble({ message }: { message: AssistantMessage }) {
+    const handleDownload = () => {
+        if (message.downloadUrl) {
+            // Construct full URL using the API base
+            const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+            const fullUrl = `${apiBase}${message.downloadUrl}`;
+            window.open(fullUrl, '_blank');
+        }
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -146,6 +155,20 @@ function AssistantMessageBubble({ message }: { message: AssistantMessage }) {
             <div className="max-w-[85%] px-4 py-2.5 rounded-2xl rounded-bl-md bg-slate-100 text-slate-700">
                 <p className="text-xs font-medium text-slate-500 mb-1">{message.agentName}</p>
                 <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+
+                {/* Download button for generated files */}
+                {message.downloadUrl && (
+                    <div className="mt-3 pt-3 border-t border-slate-200">
+                        <button
+                            onClick={handleDownload}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 text-sm font-medium transition-colors shadow-sm"
+                        >
+                            <FileText className="w-4 h-4 text-blue-500" />
+                            <span className="truncate max-w-[200px]">{message.downloadFilename || 'Document'}</span>
+                            <Download className="w-4 h-4 text-blue-500" />
+                        </button>
+                    </div>
+                )}
             </div>
         </motion.div>
     );

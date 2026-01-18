@@ -328,10 +328,10 @@ async def _populate_template_tags(
     # Calculate invoice due date (30 days from now)
     due_date = now + timedelta(days=30)
     
-    # Get sponsorship amount - use amount if set, otherwise use tier default
-    amount = sponsor_data.get("amount")
-    if not amount:
-        tier = sponsor_data.get("tier", "TBD")
+    # Get tier first (needed for both amount lookup and terms)
+    tier = sponsor_data.get("tier", "TBD")
+
+    # Tier amount defaults
     tier_amounts = {
         "Platinum Sponsor": 25000,
         "Platinum": 25000,
@@ -346,10 +346,11 @@ async def _populate_template_tags(
         "In-Kind Sponsor": 0,
         "In-Kind": 0,
     }
-    amount = tier_amounts.get(tier, 0)
-    
-    # Get sponsorship terms based on tier
-    tier = sponsor_data.get("tier", "TBD")
+
+    # Get sponsorship amount - use provided amount, otherwise use tier default
+    amount = sponsor_data.get("amount")
+    if not amount:
+        amount = tier_amounts.get(tier, 0)
     terms = _get_sponsorship_terms_from_tier(tier)
     
     # Determine attendance role
@@ -376,33 +377,65 @@ async def _populate_template_tags(
     }
 
 
+def _replace_tags_in_paragraph(paragraph, tag_mapping: dict) -> None:
+    """
+    Replace template tags in a paragraph, handling tags split across runs.
+
+    Word documents split text into "runs" based on formatting. A tag like
+    {{sponsor_company_name}} might be split across multiple runs. This function
+    combines all run text, performs replacements, and rebuilds with first run's formatting.
+
+    Args:
+        paragraph: python-docx Paragraph object
+        tag_mapping: Dict of tags to their replacement values
+    """
+    # Get full paragraph text
+    full_text = paragraph.text
+
+    # Check if any tags exist in this paragraph
+    has_tags = any(tag in full_text for tag in tag_mapping.keys())
+    if not has_tags:
+        return
+
+    # Perform all replacements on the full text
+    for tag, value in tag_mapping.items():
+        full_text = full_text.replace(tag, value)
+
+    # Clear existing runs and set new text
+    # Preserve formatting from first run if it exists
+    if paragraph.runs:
+        # Store first run's formatting
+        first_run = paragraph.runs[0]
+
+        # Clear all runs by setting text to empty
+        for run in paragraph.runs:
+            run.text = ""
+
+        # Set the replaced text in the first run
+        first_run.text = full_text
+    else:
+        # No runs exist, just set the text directly
+        paragraph.text = full_text
+
+
 def _replace_tags_in_document(doc: Document, tag_mapping: dict) -> None:
     """
     Replace all template tags in a Word document.
-    
+
     Args:
         doc: python-docx Document object
         tag_mapping: Dict of tags to their replacement values
     """
     # Replace in paragraphs
     for paragraph in doc.paragraphs:
-        for tag, value in tag_mapping.items():
-            if tag in paragraph.text:
-                # Handle multi-line values by joining runs
-                for run in paragraph.runs:
-                    if tag in run.text:
-                        run.text = run.text.replace(tag, value)
-    
+        _replace_tags_in_paragraph(paragraph, tag_mapping)
+
     # Replace in tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
-                    for tag, value in tag_mapping.items():
-                        if tag in paragraph.text:
-                            for run in paragraph.runs:
-                                if tag in run.text:
-                                    run.text = run.text.replace(tag, value)
+                    _replace_tags_in_paragraph(paragraph, tag_mapping)
 
 
 @tool
@@ -449,10 +482,9 @@ async def generate_mou_invoice(
         # Try to look up sponsor in MongoDB for additional info
         sponsor_data = None
         try:
-            result = await db_service.find_one(
-                "sponsor_partnerships",
-                {"company": {"$regex": sponsor_company_name, "$options": "i"}},
-                org_id=DEFAULT_ORG_ID,
+            collection = db_service.db["sponsor_partnerships"]
+            result = await collection.find_one(
+                {"company": {"$regex": sponsor_company_name, "$options": "i"}}
             )
             if result:
                 sponsor_data = result
@@ -492,10 +524,13 @@ async def generate_mou_invoice(
         # Save document
         doc.save(str(output_path))
         
+        # Build download URL
+        download_url = f"/api/files/{output_filename}"
+
         # Build preview of populated values
         preview_lines = ["[PENDING APPROVAL] MOU/Invoice Document Generated:", ""]
         preview_lines.append(f"📄 **File:** {output_filename}")
-        preview_lines.append(f"📁 **Location:** {output_path}")
+        preview_lines.append(f"📥 **Download:** [{output_filename}]({download_url})")
         preview_lines.append("")
         preview_lines.append("**Populated Values:**")
         for tag, value in tag_mapping.items():
@@ -503,11 +538,12 @@ async def generate_mou_invoice(
             # Truncate long values for preview
             display_value = value if len(value) < 100 else value[:100] + "..."
             preview_lines.append(f"  • {tag_name}: {display_value}")
-        
+
         preview_lines.append("")
         preview_lines.append("⚠️ This document requires your approval before sending to the sponsor.")
-        
-        return "\n".join(preview_lines)
+
+        # Return structured response with download URL for frontend
+        return f"DOWNLOAD_URL:{download_url}\n" + "\n".join(preview_lines)
         
     except Exception as e:
         logger.error(f"Error generating MOU/Invoice: {e}")

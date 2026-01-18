@@ -6,7 +6,7 @@ Routes specific agents to Vultr (cost-effective) and others to Gemini.
 """
 
 import logging
-from typing import Literal
+from typing import Literal, Optional
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
@@ -25,7 +25,7 @@ GEMINI_AGENTS = ["partnerships", "marketing", "finance", "classifier"]
 def get_llm_for_agent(
     agent_name: str,
     temperature: float = 0.3,
-    force_provider: Literal["gemini", "vultr"] | None = None,
+    force_provider: Optional[Literal["gemini", "vultr"]] = None,
 ):
     """
     Get the appropriate LLM for an agent.

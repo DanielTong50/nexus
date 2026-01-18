@@ -293,6 +293,41 @@ async def generate_events(request: ChatRequest) -> AsyncGenerator[str, None]:
         )
 
 
+def _build_context_from_history(conversation_history: list[dict], current_message: str) -> str:
+    """Build a contextual message from conversation history.
+
+    Args:
+        conversation_history: List of previous messages
+        current_message: The current user message
+
+    Returns:
+        Enhanced message with conversation context
+    """
+    if not conversation_history:
+        return current_message
+
+    # Build context string from history
+    context_parts = []
+    for msg in conversation_history[-5:]:  # Last 5 messages max
+        role = msg.get("role", "user")
+        content = msg.get("content", "")
+        agent = msg.get("agent", "")
+
+        if role == "user":
+            context_parts.append(f"User: {content}")
+        elif role == "assistant":
+            agent_label = f"[{agent}]" if agent else "[Assistant]"
+            # Truncate long assistant messages
+            truncated = content[:500] + "..." if len(content) > 500 else content
+            context_parts.append(f"{agent_label}: {truncated}")
+
+    if context_parts:
+        history_context = "\n".join(context_parts)
+        return f"[Previous conversation context:\n{history_context}]\n\nCurrent request: {current_message}"
+
+    return current_message
+
+
 async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, None]:
     """Generate SSE events with true parallel agent execution.
 
@@ -308,10 +343,18 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
     request_id = request.request_id or str(uuid.uuid4())
     history_repo = _get_history_repo()
 
+    # Build enhanced message with conversation context
+    conversation_history = request.conversation_history or []
+    enhanced_message = _build_context_from_history(conversation_history, request.message)
+
     state = GraphState(
         request_id=request_id,
-        user_message=request.message,
-        context=request.context,
+        user_message=enhanced_message,
+        context={
+            **(request.context or {}),
+            "original_message": request.message,
+            "has_conversation_history": len(conversation_history) > 0,
+        },
     )
 
     try:
@@ -411,6 +454,8 @@ async def generate_events_parallel(request: ChatRequest) -> AsyncGenerator[str, 
 
             classification_result, target_agents = await stream_classification(state)
             state.target_agents = target_agents
+            state.extracted_entities = classification_result.get("extracted_entities", {})
+            state.inferred_action = classification_result.get("inferred_action", "")
 
             # Log classification result
             await history_repo.record_classification(

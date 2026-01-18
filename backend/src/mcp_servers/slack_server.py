@@ -9,7 +9,7 @@ Run with: uv run python -m src.mcp_servers.slack_server
 import asyncio
 import json
 import os
-from typing import Any
+from typing import Any, Optional, Set
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -21,8 +21,8 @@ from slack_sdk.errors import SlackApiError
 server = Server("slack-server")
 
 # Slack client (initialized on startup)
-slack_client: WebClient | None = None
-ALLOWED_CHANNELS: set[str] = set()
+slack_client: Optional[WebClient] = None
+ALLOWED_CHANNELS: Set[str] = set()
 
 
 def get_slack_client() -> WebClient:

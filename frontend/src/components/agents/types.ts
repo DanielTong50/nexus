@@ -49,6 +49,8 @@ export interface AgentTask {
     progressSteps: ProgressStep[];
     toolCalls: string[];            // List of tool names used (for "Tools used" section)
     completionMessage?: string;     // Final summary message
+    downloadUrl?: string;           // URL to download generated file
+    downloadFilename?: string;      // Filename for download
     timestamp: string;
 }
 
@@ -64,6 +66,8 @@ export interface AssistantMessage {
     id: string;
     agentName: string;
     content: string;
+    downloadUrl?: string;           // URL to download generated file
+    downloadFilename?: string;      // Filename for download
     timestamp: string;
 }
 

@@ -6,7 +6,7 @@ Used by the orchestration layer to check if all required info is present
 before routing to agents.
 """
 
-from typing import TypedDict
+from typing import TypedDict, Optional, Union
 
 
 class ToolRequirement(TypedDict):
@@ -67,14 +67,14 @@ ACTION_TO_TOOL: dict[str, str] = {
 }
 
 
-def get_tool_requirements(tool_name: str) -> ToolRequirement | None:
+def get_tool_requirements(tool_name: str) -> Optional[ToolRequirement]:
     """Get requirements for a specific tool."""
     return TOOL_REQUIREMENTS.get(tool_name)
 
 
 def get_missing_fields(
     tool_name: str,
-    extracted_entities: dict[str, str | None]
+    extracted_entities: dict[str, Optional[str]]
 ) -> list[str]:
     """
     Check which required fields are missing for a tool.
