@@ -9,7 +9,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { Navbar } from "./Navbar";
-import { ChatPanel } from "./ChatPanel";
+import { ChatPanel } from "@/components/agents/ChatPanel";
 
 // Context for managing chat panel state across components
 interface AppShellContextType {

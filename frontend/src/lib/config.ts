@@ -104,3 +104,38 @@ export const HITL_ACTIONS = [
   "schedule_linkedin_post",
   "announce_to_slack",
 ] as const;
+
+// Chat Panel Color Palette (Light Theme)
+export const CHAT_PANEL_COLORS = {
+  // Backgrounds
+  panelBg: '#f8fafc',       // slate-50
+  cardBg: '#ffffff',         // white
+  sectionBg: '#f8fafc',      // slate-50
+  hoverBg: '#f1f5f9',        // slate-100
+
+  // Borders
+  cardBorder: '#e2e8f0',     // slate-200
+  divider: '#f1f5f9',        // slate-100
+
+  // Text
+  heading: '#0f172a',        // slate-900
+  body: '#334155',           // slate-700
+  muted: '#64748b',          // slate-500
+  subtle: '#94a3b8',         // slate-400
+
+  // Accents
+  fileIcon: '#14b8a6',       // teal-500
+  progressActive: '#3b82f6', // blue-500
+  progressComplete: '#10b981', // emerald-500
+  progressPending: '#cbd5e1', // slate-300
+
+  // Status colors
+  status: {
+    thinking: '#f59e0b',     // amber-500
+    executing: '#3b82f6',    // blue-500
+    analyzing: '#8b5cf6',    // violet-500
+    complete: '#10b981',     // emerald-500
+    error: '#ef4444',        // red-500
+  }
+} as const;
+
