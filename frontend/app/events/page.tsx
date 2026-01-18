@@ -1,9 +1,9 @@
 import type React from "react";
 import { EventsView } from "@/components/views/EventsView";
 
-export default function Home(): React.ReactElement {
+export default function EventsPage(): React.ReactElement {
     return (
-        <main className="min-h-screen bg-slate-950/50">
+        <main className="min-h-screen">
             <EventsView />
         </main>
     );
