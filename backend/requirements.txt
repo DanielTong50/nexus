@@ -37,3 +37,8 @@ mcp>=1.0.0
 
 # GitHub API
 PyGithub>=2.1.0
+
+# Authentication
+PyJWT>=2.8.0
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0

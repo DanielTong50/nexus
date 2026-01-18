@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config.settings import settings
 from src.services.database import db_service
 from src.api.routes import router as api_router
+from src.api.auth import router as auth_router
 import logging
 
 # Configure Logging
@@ -53,6 +54,7 @@ app.add_middleware(
 
 # Include Routes
 app.include_router(api_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
 
 if __name__ == "__main__":
     import uvicorn
