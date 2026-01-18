@@ -27,7 +27,7 @@ export default function LandingPage() {
             {/* Logo Marquee */}
             <div className="py-12 overflow-hidden">
                 <p className="text-center text-slate-400 text-2xl mb-8 text-white">Trusted integrations with your favorite tools...</p>
-                <Marquee pauseOnHover className="[--duration:10s]">
+                <Marquee className="[--duration:6s]">
                     {logos.map((logo, index) => (
                         <div key={index} className="mx-8 flex items-center justify-center w-16 h-16">
                             <Image
