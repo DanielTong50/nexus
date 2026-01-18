@@ -14,7 +14,7 @@ const TEAM_MEMBERS = [
         name: "Darius Alexander",
         role: "Frontend Developer",
         school: "UBC",
-        image: "/team/placeholder.png",
+        image: "/photos/dariusalexander.jpg",
     },
     {
         name: "Daniel Tong",
