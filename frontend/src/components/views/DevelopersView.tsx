@@ -2,9 +2,8 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { GitBranch, GitPullRequest, AlertCircle, Plus } from "lucide-react";
+import { GitBranch, GitPullRequest, AlertCircle } from "lucide-react";
 
 const COLUMNS = [
     {
@@ -60,16 +59,11 @@ export function DevelopersView() {
             <div className="grid grid-cols-3 gap-6">
                 {COLUMNS.map((column) => (
                     <div key={column.title}>
-                        <div className="flex items-center justify-between mb-4 px-1">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-semibold text-slate-700">{column.title}</h3>
-                                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                    {column.count}
-                                </span>
-                            </div>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-400 hover:text-slate-600">
-                                <Plus className="h-4 w-4" />
-                            </Button>
+                        <div className="flex items-center gap-2 mb-4 px-1">
+                            <h3 className="text-sm font-semibold text-slate-700">{column.title}</h3>
+                            <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                {column.count}
+                            </span>
                         </div>
 
                         <div className="space-y-3">

@@ -68,6 +68,7 @@ export type AgentId = keyof typeof AGENTS;
 
 // Navigation Items
 export const NAV_ITEMS = [
+  { id: "overview", label: "Overview", href: "/overview", icon: "LayoutDashboard" },
   { id: "events", label: "Events", href: "/events", icon: "Calendar" },
   { id: "partnerships", label: "Partnerships", href: "/partnerships", icon: "Handshake" },
   { id: "marketing", label: "Marketing", href: "/marketing", icon: "Megaphone" },

@@ -2,7 +2,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
     Table,
@@ -12,7 +11,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { DollarSign, TrendingUp, TrendingDown, ArrowUpRight } from "lucide-react";
+import { DollarSign, TrendingUp, TrendingDown } from "lucide-react";
 
 const EXPENSES = [
     { description: "Venue Deposit", category: "Logistics", amount: "$15,000", date: "Jan 15, 2026", status: "Paid" },
@@ -26,19 +25,13 @@ export function FinanceView() {
     return (
         <div className="max-w-5xl">
             {/* Header */}
-            <div className="flex items-start justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                        Finance
-                    </h1>
-                    <p className="text-slate-500 mt-1">
-                        Budget tracking and expense management.
-                    </p>
-                </div>
-                <Button variant="outline" size="sm" className="text-slate-500 gap-2">
-                    Export Report
-                    <ArrowUpRight className="h-3 w-3" />
-                </Button>
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                    Finance
+                </h1>
+                <p className="text-slate-500 mt-1">
+                    Budget tracking and expense management.
+                </p>
             </div>
 
             {/* Stats Row */}

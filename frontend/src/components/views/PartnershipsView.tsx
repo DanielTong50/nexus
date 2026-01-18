@@ -2,7 +2,6 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
     Table,
@@ -12,7 +11,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Plus, ArrowUpRight, TrendingUp } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 
 const SPONSORS = [
     { name: "Google", tier: "Platinum", amount: "$25,000", status: "Confirmed", contact: "Sarah Chen" },
@@ -26,19 +25,13 @@ export function PartnershipsView() {
     return (
         <div className="max-w-5xl">
             {/* Header */}
-            <div className="flex items-start justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                        Partnerships
-                    </h1>
-                    <p className="text-slate-500 mt-1">
-                        Manage sponsors, speakers, and strategic partners.
-                    </p>
-                </div>
-                <Button className="bg-slate-900 hover:bg-slate-800 text-white gap-2" size="sm">
-                    <Plus className="h-4 w-4" />
-                    Add Partner
-                </Button>
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                    Partnerships
+                </h1>
+                <p className="text-slate-500 mt-1">
+                    Manage sponsors, speakers, and strategic partners.
+                </p>
             </div>
 
             {/* Stats Row */}
@@ -71,15 +64,9 @@ export function PartnershipsView() {
 
             {/* Sponsors Table */}
             <div>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-slate-900 tracking-tight">
-                        Sponsor Pipeline
-                    </h2>
-                    <Button variant="outline" size="sm" className="text-slate-500 gap-2">
-                        Export
-                        <ArrowUpRight className="h-3 w-3" />
-                    </Button>
-                </div>
+                <h2 className="text-lg font-semibold text-slate-900 tracking-tight mb-4">
+                    Sponsor Pipeline
+                </h2>
 
                 <Card className="border border-slate-200 shadow-sm">
                     <Table>

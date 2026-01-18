@@ -2,9 +2,8 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Calendar } from "lucide-react";
+import { Calendar } from "lucide-react";
 
 const SCHEDULED_POSTS = [
     { platform: "Instagram", title: "Speaker Announcement", date: "Today, 2:00 PM", status: "Scheduled" },
@@ -23,19 +22,13 @@ export function MarketingView() {
     return (
         <div className="max-w-5xl">
             {/* Header */}
-            <div className="flex items-start justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                        Marketing
-                    </h1>
-                    <p className="text-slate-500 mt-1">
-                        Campaigns, content calendar, and brand assets.
-                    </p>
-                </div>
-                <Button className="bg-slate-900 hover:bg-slate-800 text-white gap-2" size="sm">
-                    <Plus className="h-4 w-4" />
-                    Create Post
-                </Button>
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                    Marketing
+                </h1>
+                <p className="text-slate-500 mt-1">
+                    Campaigns, content calendar, and brand assets.
+                </p>
             </div>
 
             <Tabs defaultValue="calendar" className="w-full">

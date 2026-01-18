@@ -2,9 +2,8 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 
 const SCHEDULE = [
     { time: "08:00 AM", event: "Registration & Breakfast", status: "completed" },
@@ -27,19 +26,13 @@ export function EventsView() {
     return (
         <div className="max-w-5xl">
             {/* Header */}
-            <div className="flex items-start justify-between mb-8">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-                        Events
-                    </h1>
-                    <p className="text-slate-500 mt-1">
-                        Logistics, schedule, and run of show.
-                    </p>
-                </div>
-                <Button className="bg-slate-900 hover:bg-slate-800 text-white gap-2" size="sm">
-                    <Plus className="h-4 w-4" />
-                    Add Event
-                </Button>
+            <div className="mb-8">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">
+                    Events
+                </h1>
+                <p className="text-slate-500 mt-1">
+                    Logistics, schedule, and run of show.
+                </p>
             </div>
 
             <div className="grid grid-cols-3 gap-6">
