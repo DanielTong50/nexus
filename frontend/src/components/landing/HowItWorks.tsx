@@ -32,7 +32,7 @@ const STEPS = [
 
 export function HowItWorks() {
     return (
-        <section id="how-it-works" className="py-24">
+        <section id="how-it-works" className="py-24 scroll-mt-20">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <motion.div
@@ -52,8 +52,7 @@ export function HowItWorks() {
 
                 {/* Steps */}
                 <div className="relative">
-                    {/* Connecting Line */}
-                    <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-px bg-slate-700 transform -translate-y-1/2" />
+
 
                     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
                         {STEPS.map((step, index) => (
@@ -63,10 +62,10 @@ export function HowItWorks() {
                                 whileInView={{ opacity: 1, y: 0 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.5, delay: index * 0.1 }}
-                                className="relative"
+                                className="relative h-full"
                             >
                                 {/* Step Card */}
-                                <div className="bg-slate-900/80 rounded-2xl p-6 border border-slate-700 hover:border-slate-500 hover:shadow-xl transition-all duration-300 relative z-10">
+                                <div className="h-full bg-slate-900/80 rounded-2xl p-6 border border-slate-700 hover:border-slate-500 hover:shadow-xl transition-all duration-300 relative z-10 flex flex-col">
                                     {/* Number Badge */}
                                     <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-black font-bold text-lg mb-4">
                                         {step.number}
@@ -85,8 +84,7 @@ export function HowItWorks() {
                                     </p>
                                 </div>
 
-                                {/* Connector Dot */}
-                                <div className="hidden lg:block absolute top-1/2 left-1/2 w-4 h-4 rounded-full bg-black border-4 border-slate-600 transform -translate-x-1/2 -translate-y-1/2 z-20" />
+
                             </motion.div>
                         ))}
                     </div>
