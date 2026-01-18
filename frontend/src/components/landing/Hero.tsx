@@ -18,7 +18,7 @@ export function Hero() {
     return (
         <section className="relative min-h-screen flex items-center overflow-hidden pt-16">
 
-            <div className="relative z-10 w-full flex items-center justify-between px-4 sm:px-8 lg:pl-16 lg:pr-52 py-20">
+            <div className="relative z-10 w-full flex items-center justify-between px-6 sm:px-12 lg:px-24 py-20">
                 {/* Left side - Text content */}
                 <div className="text-left max-w-xl">
 
