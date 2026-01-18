@@ -41,11 +41,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS Setup - Allow Netlify and Railway domains
+# CORS Setup - Allow Netlify, Railway domains, and custom domain
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_origin_regex=r"https://.*\.(netlify\.app|railway\.app)$",
+    allow_origins=settings.CORS_ORIGINS + ["https://nexusapp.tech", "https://www.nexusapp.tech"],
+    allow_origin_regex=r"https://.*\.(netlify\.app|railway\.app|nexusapp\.tech)$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
