@@ -24,15 +24,15 @@ async def connect_to_mongo() -> None:
     """
     global _client, _db
 
-    logger.info(f"Connecting to MongoDB: {settings.db_name}")
+    logger.info(f"Connecting to MongoDB: {settings.mongodb_database}")
 
     _client = AsyncIOMotorClient(
-        settings.mongo_uri,
+        settings.mongodb_uri,
         maxPoolSize=10,
         minPoolSize=1,
         serverSelectionTimeoutMS=5000,
     )
-    _db = _client[settings.db_name]
+    _db = _client[settings.mongodb_database]
 
     # Verify connection
     await ping()

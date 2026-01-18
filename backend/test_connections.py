@@ -14,16 +14,12 @@ async def test_mongodb():
         from config.settings import settings
         from motor.motor_asyncio import AsyncIOMotorClient
         
-        client = AsyncIOMotorClient(settings.mongodb_uri)
-        # Ping the database
-        await client.admin.command('ping')
-        print(f"✅ MongoDB connected successfully!")
+        print(f"   URI: {settings.mongodb_uri[:50]}...")
         print(f"   Database: {settings.mongodb_database}")
         
-        # List collections
-        db = client[settings.mongodb_database]
-        collections = await db.list_collection_names()
-        print(f"   Collections: {collections if collections else '(none yet)'}")
+        client = AsyncIOMotorClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
+        await client.admin.command('ping')
+        print(f"✅ MongoDB connected successfully!")
         
         client.close()
         return True
@@ -40,49 +36,79 @@ async def test_gemini():
         from langchain_google_genai import ChatGoogleGenerativeAI
         from langchain_core.messages import HumanMessage
         
-        if not settings.google_api_key:
+        api_key = settings.google_api_key.get_secret_value()
+        if not api_key:
             print("❌ GOOGLE_API_KEY is empty or not set")
             return False
         
         print(f"   Model: {settings.classifier_model}")
+        print(f"   API Key: {api_key[:10]}...")
         
         llm = ChatGoogleGenerativeAI(
             model=settings.classifier_model,
-            google_api_key=settings.google_api_key,
+            google_api_key=api_key,
             temperature=0,
         )
         
-        # Simple test message
         response = await llm.ainvoke([HumanMessage(content="Say 'API working' in exactly 2 words")])
         print(f"✅ Gemini API working!")
-        print(f"   Response: {response.content[:100]}")
+        print(f"   Response: {response.content[:50]}")
         return True
     except Exception as e:
         print(f"❌ Gemini API failed: {e}")
         return False
 
 
-async def test_classifier():
-    """Test the actual classifier."""
-    print("\n🔍 Testing Classifier with real LLM...")
+async def test_vultr():
+    """Test Vultr Serverless Inference API key."""
+    print("\n🔍 Testing Vultr Serverless Inference API key...")
     try:
-        from src.graph.classifier import classify_request
-        from src.models.state import GraphState
+        from config.settings import settings
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage
         
-        state = GraphState(
-            request_id="test-1",
-            user_message="Just finished a meeting with Google who agreed to pay $1,000 for boothing at Blueprint",
+        api_key = settings.vultr_api_key.get_secret_value()
+        if not api_key:
+            print("❌ VULTR_API_KEY is empty or not set")
+            return False
+        
+        print(f"   URL: {settings.vultr_inference_url}")
+        print(f"   Model: {settings.vultr_agent_model}")
+        print(f"   API Key: {api_key[:10]}...")
+        
+        # Vultr uses OpenAI-compatible API
+        llm = ChatOpenAI(
+            base_url=settings.vultr_inference_url,
+            api_key=api_key,
+            model=settings.vultr_agent_model,
+            temperature=0,
         )
         
-        result = await classify_request(state)
-        agents = result.get("target_agents", [])
-        
-        print(f"✅ Classifier working!")
-        print(f"   Test prompt: 'Sponsor meeting with Google...'")
-        print(f"   Routed to: {agents}")
+        response = await llm.ainvoke([HumanMessage(content="Say 'Vultr working' in exactly 2 words")])
+        print(f"✅ Vultr API working!")
+        print(f"   Response: {response.content[:50]}")
         return True
     except Exception as e:
-        print(f"❌ Classifier failed: {e}")
+        print(f"❌ Vultr API failed: {e}")
+        return False
+
+
+async def test_settings():
+    """Test that settings load correctly."""
+    print("\n🔍 Testing Settings Configuration...")
+    try:
+        from config.settings import settings
+        
+        print(f"   App Name: {settings.app_name}")
+        print(f"   Environment: {settings.app_env}")
+        print(f"   Active Provider: {settings.active_agent_provider}")
+        print(f"   Classifier Model: {settings.classifier_model}")
+        print(f"   Agent Model: {settings.agent_model}")
+        print(f"   Current Agent Model: {settings.current_agent_model}")
+        
+        return True
+    except Exception as e:
+        print(f"❌ Settings failed: {e}")
         return False
 
 
@@ -93,15 +119,17 @@ async def main():
     
     results = {}
     
+    # Test Settings
+    results["settings"] = await test_settings()
+    
     # Test MongoDB
     results["mongodb"] = await test_mongodb()
     
-    # Test Gemini
+    # Test Gemini (always needed for classifier)
     results["gemini"] = await test_gemini()
     
-    # Test Classifier (uses Gemini)
-    if results["gemini"]:
-        results["classifier"] = await test_classifier()
+    # Test Vultr
+    results["vultr"] = await test_vultr()
     
     # Summary
     print("\n" + "=" * 50)

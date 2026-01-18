@@ -1,14 +1,14 @@
 """Application settings using Pydantic Settings.
 
 Dual-Engine LLM Strategy:
-- Classifier: Always Gemini 1.5 Pro (complex routing)
-- Agents: Configurable - Gemini Flash (default) or Vultr/Llama 3.3
+- Classifier: Always Gemini (complex routing)
+- Agents: Configurable - Gemini (default) or Vultr/Llama 3.3
 """
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Optional
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,42 +26,54 @@ class Settings(BaseSettings):
     # Application
     # ==========================================================================
     app_name: str = "nexus"
-    environment: Literal["development", "staging", "production"] = "development"
+    app_env: Literal["development", "staging", "production"] = Field(
+        default="development", alias="APP_ENV"
+    )
     debug: bool = True
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # ==========================================================================
     # Database (MongoDB Atlas)
     # ==========================================================================
-    mongo_uri: str = "mongodb://localhost:27017"
-    db_name: str = "nexus-core"
+    # Maps to MONGODB_URI in .env
+    mongodb_uri: str = Field(default="mongodb://localhost:27017", alias="MONGODB_URI")
+    # Maps to MONGODB_DATABASE in .env
+    mongodb_database: str = Field(default="nexus", alias="MONGODB_DATABASE")
 
     # ==========================================================================
     # Gemini (Google AI) - Used for Classifier
     # ==========================================================================
-    gemini_api_key: SecretStr = SecretStr("")
-    classifier_model: str = "gemini-1.5-pro"
-    gemini_agent_model: str = "gemini-1.5-flash"
+    # Maps to GOOGLE_API_KEY in .env
+    google_api_key: SecretStr = Field(default=SecretStr(""), alias="GOOGLE_API_KEY")
+    # Maps to CLASSIFIER_MODEL in .env
+    classifier_model: str = Field(default="gemini-2.0-flash", alias="CLASSIFIER_MODEL")
+    # Maps to AGENT_MODEL in .env (for Gemini agents)
+    agent_model: str = Field(default="gemini-2.0-flash", alias="AGENT_MODEL")
 
     # ==========================================================================
     # Vultr Serverless Inference (Llama 3.3) - Alternative Agent Provider
     # ==========================================================================
-    vultr_api_key: SecretStr = SecretStr("")
-    vultr_inference_url: str = "https://api.vultrinference.com/v1"
-    vultr_agent_model: str = "llama-3.3-70b-instruct"
+    vultr_api_key: SecretStr = Field(default=SecretStr(""), alias="VULTR_API_KEY")
+    vultr_inference_url: str = Field(
+        default="https://api.vultrinference.com/v1", alias="VULTR_INFERENCE_URL"
+    )
+    vultr_agent_model: str = Field(
+        default="llama-3.3-70b-instruct-fp8", alias="VULTR_AGENT_MODEL"
+    )
 
     # ==========================================================================
     # LLM Provider Switch
     # ==========================================================================
-    # Master switch for agent LLM provider
-    # "gemini" = Use Gemini Flash for agents (default)
-    # "vultr" = Use Vultr/Llama 3.3 for agents (cost savings)
-    active_agent_provider: Literal["gemini", "vultr"] = "gemini"
+    # "gemini" = Use Gemini for agents (default)
+    # "vultr" = Use Vultr/Llama 3.3 for agents
+    active_agent_provider: Literal["gemini", "vultr"] = Field(
+        default="gemini", alias="ACTIVE_AGENT_PROVIDER"
+    )
 
     # ==========================================================================
     # Redis (for caching/sessions)
     # ==========================================================================
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
 
     # ==========================================================================
     # External Services (Backend Dev 2 tools)
@@ -85,21 +97,21 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         """Check if running in production environment."""
-        return self.environment == "production"
+        return self.app_env == "production"
 
     @property
-    def agent_model(self) -> str:
+    def current_agent_model(self) -> str:
         """Get the active agent model based on provider switch."""
         if self.active_agent_provider == "vultr":
             return self.vultr_agent_model
-        return self.gemini_agent_model
+        return self.agent_model
 
     @property
-    def agent_api_key(self) -> SecretStr:
+    def current_agent_api_key(self) -> SecretStr:
         """Get the API key for the active agent provider."""
         if self.active_agent_provider == "vultr":
             return self.vultr_api_key
-        return self.gemini_api_key
+        return self.google_api_key
 
 
 @lru_cache

@@ -63,10 +63,10 @@ User message: {message}
 
 
 def _get_classifier_llm() -> ChatGoogleGenerativeAI:
-    """Get the classifier LLM (always Gemini 1.5 Pro)."""
+    """Get the classifier LLM (always Gemini)."""
     return ChatGoogleGenerativeAI(
         model=settings.classifier_model,
-        google_api_key=settings.gemini_api_key.get_secret_value(),
+        google_api_key=settings.google_api_key.get_secret_value(),
         temperature=0.1,
     )
 
