@@ -43,9 +43,21 @@ async def run_partnerships_agent(state: GraphState) -> dict:
     logger.info("Partnerships agent starting...")
 
     try:
+        # Build enriched prompt with extracted entities if available
+        prompt = state.user_message
+        if state.extracted_entities:
+            entities_str = ", ".join([f"{k}: {v}" for k, v in state.extracted_entities.items() if v])
+            prompt = f"{state.user_message}\n\n[Extracted information: {entities_str}]"
+
+        context = {"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        if state.inferred_action:
+            context["inferred_action"] = state.inferred_action
+        if state.extracted_entities:
+            context["extracted_entities"] = state.extracted_entities
+
         result = await partnerships_agent.execute(
-            prompt=state.user_message,
-            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+            prompt=prompt,
+            context=context
         )
 
         agent_result = AgentResult(
@@ -81,9 +93,21 @@ async def run_marketing_agent(state: GraphState) -> dict:
     logger.info("Marketing agent starting...")
 
     try:
+        # Build enriched prompt with extracted entities if available
+        prompt = state.user_message
+        if state.extracted_entities:
+            entities_str = ", ".join([f"{k}: {v}" for k, v in state.extracted_entities.items() if v])
+            prompt = f"{state.user_message}\n\n[Extracted information: {entities_str}]"
+
+        context = {"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        if state.inferred_action:
+            context["inferred_action"] = state.inferred_action
+        if state.extracted_entities:
+            context["extracted_entities"] = state.extracted_entities
+
         result = await marketing_agent.execute(
-            prompt=state.user_message,
-            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+            prompt=prompt,
+            context=context
         )
 
         agent_result = AgentResult(
@@ -119,18 +143,39 @@ async def run_finance_agent(state: GraphState) -> dict:
     logger.info("Finance agent starting...")
 
     try:
+        # Build enriched prompt with extracted entities if available
+        prompt = state.user_message
+        if state.extracted_entities:
+            entities_str = ", ".join([f"{k}: {v}" for k, v in state.extracted_entities.items()])
+            prompt = f"{state.user_message}\n\n[Extracted information: {entities_str}]"
+
+        context = {"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        if state.inferred_action:
+            context["inferred_action"] = state.inferred_action
+        if state.extracted_entities:
+            context["extracted_entities"] = state.extracted_entities
+
         result = await finance_agent.execute(
-            prompt=state.user_message,
-            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+            prompt=prompt,
+            context=context
         )
+
+        # Determine status - check for clarification first
+        if getattr(result, 'needs_clarification', False):
+            status = "needs_clarification"
+        else:
+            status = "success" if result.success else "error"
 
         agent_result = AgentResult(
             agent_name="finance",
-            status="success" if result.success else "error",
+            status=status,
             message=result.message,
             data={"execution_time": time.time() - start_time},
             tool_calls=result.tool_calls,
             pending_actions=result.pending_actions if hasattr(result, 'pending_actions') else [],
+            # Propagate clarification fields
+            clarification_questions=getattr(result, 'clarification_questions', None),
+            clarification_context=getattr(result, 'clarification_context', None),
         )
 
         logger.info(f"Finance agent completed in {time.time() - start_time:.3f}s")
@@ -157,9 +202,21 @@ async def run_events_agent(state: GraphState) -> dict:
     logger.info("Events agent starting...")
 
     try:
+        # Build enriched prompt with extracted entities if available
+        prompt = state.user_message
+        if state.extracted_entities:
+            entities_str = ", ".join([f"{k}: {v}" for k, v in state.extracted_entities.items() if v])
+            prompt = f"{state.user_message}\n\n[Extracted information: {entities_str}]"
+
+        context = {"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        if state.inferred_action:
+            context["inferred_action"] = state.inferred_action
+        if state.extracted_entities:
+            context["extracted_entities"] = state.extracted_entities
+
         result = await events_agent.execute(
-            prompt=state.user_message,
-            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+            prompt=prompt,
+            context=context
         )
 
         agent_result = AgentResult(
@@ -195,9 +252,21 @@ async def run_developers_agent(state: GraphState) -> dict:
     logger.info("Developers agent starting...")
 
     try:
+        # Build enriched prompt with extracted entities if available
+        prompt = state.user_message
+        if state.extracted_entities:
+            entities_str = ", ".join([f"{k}: {v}" for k, v in state.extracted_entities.items() if v])
+            prompt = f"{state.user_message}\n\n[Extracted information: {entities_str}]"
+
+        context = {"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+        if state.inferred_action:
+            context["inferred_action"] = state.inferred_action
+        if state.extracted_entities:
+            context["extracted_entities"] = state.extracted_entities
+
         result = await developers_agent.execute(
-            prompt=state.user_message,
-            context={"event_id": state.event_id} if hasattr(state, 'event_id') else {}
+            prompt=prompt,
+            context=context
         )
 
         agent_result = AgentResult(

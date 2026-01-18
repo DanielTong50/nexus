@@ -16,8 +16,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 
 from src.api.streaming import (
     create_event_stream,
@@ -63,11 +65,35 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
     logger.info(f"Processing chat request {request_id}: {request.message[:50]}...")
 
     try:
+        # Build enhanced message with conversation context if available
+        conversation_history = request.conversation_history or []
+        enhanced_message = request.message
+
+        if conversation_history:
+            context_parts = []
+            for msg in conversation_history[-5:]:
+                role = msg.get("role", "user")
+                content = msg.get("content", "")
+                agent = msg.get("agent", "")
+                if role == "user":
+                    context_parts.append(f"User: {content}")
+                elif role == "assistant":
+                    agent_label = f"[{agent}]" if agent else "[Assistant]"
+                    truncated = content[:500] + "..." if len(content) > 500 else content
+                    context_parts.append(f"{agent_label}: {truncated}")
+            if context_parts:
+                history_context = "\n".join(context_parts)
+                enhanced_message = f"[Previous conversation context:\n{history_context}]\n\nCurrent request: {request.message}"
+
         # Create initial state
         state = GraphState(
             request_id=request_id,
-            user_message=request.message,
-            context=request.context,
+            user_message=enhanced_message,
+            context={
+                **(request.context or {}),
+                "original_message": request.message,
+                "has_conversation_history": len(conversation_history) > 0,
+            },
         )
 
         # Run classification
@@ -82,8 +108,10 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
                 results=[],
             )
 
-        # Update state with target agents
+        # Update state with classification results
         state.target_agents = target_agents
+        state.extracted_entities = classification_result.get("extracted_entities", {})
+        state.inferred_action = classification_result.get("inferred_action", "")
 
         # Run agents in parallel
         execution_result = await run_agents_parallel(state)
@@ -735,4 +763,78 @@ async def list_recent_requests(
     return {
         "requests": [r.model_dump() for r in requests],
         "count": len(requests),
+    }
+
+
+# File download endpoints
+
+GENERATED_FILES_DIR = Path(__file__).parent.parent / "tools" / "generated"
+
+
+@router.get("/files/{filename}")
+async def download_file(filename: str):
+    """Download a generated file.
+
+    Args:
+        filename: Name of the file to download
+
+    Returns:
+        FileResponse for the requested file
+    """
+    # Security: only allow files from the generated directory
+    file_path = GENERATED_FILES_DIR / filename
+
+    # Prevent directory traversal attacks
+    try:
+        file_path = file_path.resolve()
+        if not str(file_path).startswith(str(GENERATED_FILES_DIR.resolve())):
+            raise HTTPException(status_code=403, detail="Access denied")
+    except Exception:
+        raise HTTPException(status_code=403, detail="Invalid file path")
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File '{filename}' not found")
+
+    # Determine media type based on extension
+    media_type = "application/octet-stream"
+    if filename.endswith(".docx"):
+        media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif filename.endswith(".pdf"):
+        media_type = "application/pdf"
+    elif filename.endswith(".xlsx"):
+        media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    return FileResponse(
+        path=str(file_path),
+        filename=filename,
+        media_type=media_type,
+    )
+
+
+@router.get("/files")
+async def list_generated_files() -> dict:
+    """List all generated files available for download.
+
+    Returns:
+        List of generated files with metadata
+    """
+    files = []
+
+    if GENERATED_FILES_DIR.exists():
+        for file_path in GENERATED_FILES_DIR.iterdir():
+            if file_path.is_file() and not file_path.name.startswith("."):
+                stat = file_path.stat()
+                files.append({
+                    "filename": file_path.name,
+                    "size": stat.st_size,
+                    "created_at": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                    "download_url": f"/api/files/{file_path.name}",
+                })
+
+    # Sort by creation time, newest first
+    files.sort(key=lambda x: x["created_at"], reverse=True)
+
+    return {
+        "files": files,
+        "count": len(files),
     }

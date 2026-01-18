@@ -22,6 +22,14 @@ class AgentResult(BaseModel):
     requires_approval: bool = Field(False, description="Whether this result needs HITL approval")
     pending_actions: list[dict] = Field(default_factory=list, description="Actions pending approval")
     error: Optional[str] = Field(None, description="Error message if execution failed")
+    # Clarification support
+    needs_clarification: bool = Field(False, description="Whether agent needs more info from user")
+    clarification_questions: Optional[list[str]] = Field(
+        None, description="Questions to ask user when clarification is needed"
+    )
+    clarification_context: Optional[dict] = Field(
+        None, description="Context to preserve for follow-up when clarification is provided"
+    )
 
 
 class AgentError(BaseModel):
@@ -135,4 +143,30 @@ class BaseAgent(ABC):
             success=False,
             message=f"Agent {self.agent_name} encountered an error",
             error=error
+        )
+
+    def _create_clarification_result(
+        self,
+        questions: list[str],
+        context: dict,
+        message: Optional[str] = None,
+    ) -> AgentResult:
+        """
+        Helper to create a result requesting user clarification.
+        
+        Args:
+            questions: List of questions to ask the user
+            context: Context to preserve for when user responds
+            message: Optional message explaining what's needed
+            
+        Returns:
+            AgentResult with needs_clarification=True
+        """
+        return AgentResult(
+            agent_name=self.agent_name,
+            success=True,  # Not a failure, just needs more info
+            message=message or "I need some additional information to proceed.",
+            needs_clarification=True,
+            clarification_questions=questions,
+            clarification_context=context,
         )

@@ -1,8 +1,11 @@
 """LangGraph state schemas for workflow execution."""
 
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from src.models.task_plan import TaskPlan
 
 
 def merge_lists(left: list, right: list) -> list:
@@ -14,11 +17,19 @@ class AgentResult(BaseModel):
     """Result from a single agent execution."""
 
     agent_name: str = Field(description="Name of the agent that produced this result")
-    status: Literal["success", "error", "partial"] = Field(description="Execution status")
+    status: Literal["success", "error", "partial", "needs_clarification"] = Field(
+        description="Execution status"
+    )
     message: str = Field(description="Human-readable result message")
     data: Optional[dict] = Field(default=None, description="Structured result data")
     tool_calls: list[dict] = Field(default_factory=list, description="Tools invoked by agent")
     pending_actions: list[dict] = Field(default_factory=list, description="Actions pending approval")
+    clarification_questions: Optional[list[str]] = Field(
+        default=None, description="Questions to ask user if status is needs_clarification"
+    )
+    clarification_context: Optional[dict] = Field(
+        default=None, description="Context to preserve for follow-up"
+    )
 
 
 class GraphState(BaseModel):
@@ -31,10 +42,34 @@ class GraphState(BaseModel):
     request_id: str = Field(description="Unique identifier for this request")
     user_message: str = Field(description="Original user message")
     context: dict = Field(default_factory=dict, description="Additional context")
+    
+    # Organization context
+    org_id: str = Field(default="default", description="Organization identifier")
 
-    # Classification
+    # Classification (legacy - for backward compatibility)
     target_agents: list[str] = Field(
         default_factory=list, description="Agents selected by classifier"
+    )
+    
+    # Entity extraction from classifier
+    extracted_entities: dict = Field(
+        default_factory=dict, description="Entities extracted from user request"
+    )
+    inferred_action: str = Field(
+        default="", description="Specific action inferred from request"
+    )
+    
+    # Task Plan (new - for structured workflows)
+    task_plan: Optional[Any] = Field(
+        default=None, description="Structured task plan from enhanced classifier"
+    )
+    
+    # Task execution tracking
+    completed_task_ids: list[str] = Field(
+        default_factory=list, description="IDs of completed tasks"
+    )
+    task_results: dict[str, Any] = Field(
+        default_factory=dict, description="Results keyed by task ID"
     )
 
     # Execution - using Annotated for reducer
@@ -51,6 +86,17 @@ class GraphState(BaseModel):
     current_agent: Optional[str] = Field(
         default=None, description="Currently executing agent"
     )
+    current_task_id: Optional[str] = Field(
+        default=None, description="Currently executing task ID"
+    )
     completed_agents: list[str] = Field(
         default_factory=list, description="Agents that have completed"
     )
+    
+    def has_task_plan(self) -> bool:
+        """Check if this state has a structured task plan."""
+        return self.task_plan is not None
+    
+    def get_completed_task_ids(self) -> set[str]:
+        """Get set of completed task IDs for dependency checking."""
+        return set(self.completed_task_ids)

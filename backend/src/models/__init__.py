@@ -31,6 +31,23 @@ from src.models.budget import (
     BudgetSummary,
     BudgetCategory,
 )
+from src.models.organization import (
+    OrganizationConfig,
+    SlackChannelMapping,
+    DataSourceMapping,
+    EventConfig,
+    create_default_config,
+)
+from src.models.task_plan import (
+    Task,
+    TaskPlan,
+    QuestionPlan,
+    ExtractedEntity,
+    TaskStatus,
+    RequestType,
+    ExecutionStrategy,
+    create_task_plan,
+)
 
 __all__ = [
     # Base
@@ -69,4 +86,19 @@ __all__ = [
     "SponsorshipRevenue",
     "BudgetSummary",
     "BudgetCategory",
+    # Organization Config
+    "OrganizationConfig",
+    "SlackChannelMapping",
+    "DataSourceMapping",
+    "EventConfig",
+    "create_default_config",
+    # Task Plan
+    "Task",
+    "TaskPlan",
+    "QuestionPlan",
+    "ExtractedEntity",
+    "TaskStatus",
+    "RequestType",
+    "ExecutionStrategy",
+    "create_task_plan",
 ]

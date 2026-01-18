@@ -9,7 +9,7 @@ Run with: uv run python -m src.mcp_servers.github_server
 import asyncio
 import json
 import os
-from typing import Any
+from typing import Any, Optional
 
 from github import Github, GithubException, Auth
 from mcp.server import Server
@@ -20,7 +20,7 @@ from mcp.types import Tool, TextContent
 server = Server("github-server")
 
 # GitHub client (initialized on startup)
-github_client: Github | None = None
+github_client: Optional[Github] = None
 DEFAULT_OWNER: str = ""
 
 

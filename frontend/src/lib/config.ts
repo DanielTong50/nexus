@@ -23,7 +23,7 @@ export const ENDPOINTS = {
   // Info endpoints
   agents: `${API_BASE}/agents`,
   config: `${API_BASE}/config`,
-  health: `${API_URL}/health`,
+  health: `${API_BASE}/health`,
 } as const;
 
 // Agent Configuration
