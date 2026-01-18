@@ -14,7 +14,11 @@ import type {
     AgentTask,
     UserMessage,
     ProgressStep,
-    EditedFile
+    EditedFile,
+    TaskPlanData,
+    TaskPlanFeedItem,
+    TaskInfo,
+    TaskExecutionStatus,
 } from "@/components/agents/types";
 import { getFileIconType } from "@/components/agents/types";
 
@@ -52,8 +56,15 @@ export function useAgentStream(): UseAgentStreamReturn {
 
     // Track current agent task being built
     const currentTaskRef = useRef<AgentTask | null>(null);
+    const currentTaskPlanRef = useRef<TaskPlanFeedItem | null>(null);
     const stepCounterRef = useRef(0);
     const idCounter = useRef(0);
+    // Track pending clarification context for follow-up
+    const pendingClarificationRef = useRef<{
+        agent_name: string;
+        context: Record<string, unknown>;
+        original_request: string;
+    } | null>(null);
 
     const generateId = useCallback(() => {
         idCounter.current += 1;
@@ -97,6 +108,210 @@ export function useAgentStream(): UseAgentStreamReturn {
                 });
                 break;
             }
+
+            // =================================================================
+            // Task-based orchestration events (Phase 4)
+            // =================================================================
+
+            case "planning": {
+                // Create a planner task card
+                const plannerTask: AgentTask = {
+                    id: generateId(),
+                    agentId: 'partnerships',
+                    agentName: 'Task Planner',
+                    taskTitle: '',
+                    taskDescription: '',
+                    status: 'analyzing',
+                    statusMessage: data.message as string || 'Planning tasks...',
+                    filesEdited: [],
+                    progressSteps: [],
+                    toolCalls: [],
+                    timestamp: event.timestamp,
+                };
+                setFeedItems(prev => [...prev, { type: 'agent', data: plannerTask }]);
+                break;
+            }
+
+            case "task_plan": {
+                // Create task plan feed item with full breakdown
+                const tasks = (data.tasks as Array<{
+                    id: string;
+                    agent: string;
+                    action: string;
+                    description: string;
+                    depends_on: string[];
+                    requires_approval: boolean;
+                }>).map(t => ({
+                    ...t,
+                    status: 'pending' as TaskExecutionStatus,
+                }));
+
+                const planData: TaskPlanData = {
+                    plan_id: data.plan_id as string,
+                    request_type: data.request_type as 'workflow' | 'question' | 'status_update',
+                    total_tasks: data.total_tasks as number,
+                    execution_strategy: data.execution_strategy as 'sequential' | 'parallel' | 'mixed',
+                    target_agents: data.target_agents as string[],
+                    tasks: tasks,
+                    extracted_entities: (data.extracted_entities as Array<{ type: string; value: string | number }>) || [],
+                };
+
+                const taskPlanItem: TaskPlanFeedItem = {
+                    id: generateId(),
+                    plan: planData,
+                    status: 'executing',
+                    completedTasks: 0,
+                    failedTasks: 0,
+                    timestamp: event.timestamp,
+                };
+
+                currentTaskPlanRef.current = taskPlanItem;
+
+                // Update the planner task to complete
+                setFeedItems(prev => {
+                    const updated = [...prev];
+                    const lastItem = updated[updated.length - 1];
+                    if (lastItem?.type === 'agent' && lastItem.data.agentName === 'Task Planner') {
+                        lastItem.data.status = 'complete';
+                        lastItem.data.statusMessage = `Created ${planData.total_tasks} task(s)`;
+                    }
+                    // Add the task plan item
+                    return [...updated, { type: 'task_plan', data: taskPlanItem }];
+                });
+                break;
+            }
+
+            case "task_start": {
+                if (!currentTaskPlanRef.current) break;
+
+                const taskId = data.task_id as string;
+                const planId = currentTaskPlanRef.current.id;
+
+                setFeedItems(prev => {
+                    const updated = [...prev];
+                    const planItem = updated.find(
+                        item => item.type === 'task_plan' && item.data.id === planId
+                    );
+
+                    if (planItem?.type === 'task_plan') {
+                        const task = planItem.data.plan.tasks.find(t => t.id === taskId);
+                        if (task) {
+                            task.status = 'running';
+                        }
+                    }
+
+                    return updated;
+                });
+                break;
+            }
+
+            case "task_complete": {
+                if (!currentTaskPlanRef.current) break;
+
+                const taskId = data.task_id as string;
+                const planId = currentTaskPlanRef.current.id;
+                const result = data.message as string;
+                const execTime = data.execution_time as number;
+
+                setFeedItems(prev => {
+                    const updated = [...prev];
+                    const planItem = updated.find(
+                        item => item.type === 'task_plan' && item.data.id === planId
+                    );
+
+                    if (planItem?.type === 'task_plan') {
+                        const task = planItem.data.plan.tasks.find(t => t.id === taskId);
+                        if (task) {
+                            task.status = 'completed';
+                            task.result = result;
+                            task.execution_time = execTime;
+                        }
+                        planItem.data.completedTasks += 1;
+                    }
+
+                    return updated;
+                });
+                break;
+            }
+
+            case "task_failed":
+            case "task_error": {
+                if (!currentTaskPlanRef.current) break;
+
+                const taskId = data.task_id as string;
+                const planId = currentTaskPlanRef.current.id;
+                const errorMsg = data.error as string;
+
+                setFeedItems(prev => {
+                    const updated = [...prev];
+                    const planItem = updated.find(
+                        item => item.type === 'task_plan' && item.data.id === planId
+                    );
+
+                    if (planItem?.type === 'task_plan') {
+                        const task = planItem.data.plan.tasks.find(t => t.id === taskId);
+                        if (task) {
+                            task.status = 'failed';
+                            task.error = errorMsg;
+                        }
+                        planItem.data.failedTasks += 1;
+                    }
+
+                    return updated;
+                });
+                break;
+            }
+
+            case "approval_required":
+            case "task_approval_required": {
+                if (!currentTaskPlanRef.current) break;
+
+                const taskId = data.task_id as string;
+                const planId = currentTaskPlanRef.current.id;
+
+                setFeedItems(prev => {
+                    const updated = [...prev];
+                    const planItem = updated.find(
+                        item => item.type === 'task_plan' && item.data.id === planId
+                    );
+
+                    if (planItem?.type === 'task_plan') {
+                        const task = planItem.data.plan.tasks.find(t => t.id === taskId);
+                        if (task) {
+                            task.status = 'approval_required';
+                        }
+                    }
+
+                    return updated;
+                });
+                break;
+            }
+
+            case "orchestration_complete": {
+                if (!currentTaskPlanRef.current) break;
+
+                const planId = currentTaskPlanRef.current.id;
+
+                setFeedItems(prev => {
+                    const updated = [...prev];
+                    const planItem = updated.find(
+                        item => item.type === 'task_plan' && item.data.id === planId
+                    );
+
+                    if (planItem?.type === 'task_plan') {
+                        planItem.data.status = 'complete';
+                    }
+
+                    return updated;
+                });
+
+                currentTaskPlanRef.current = null;
+                break;
+            }
+
+            // =================================================================
+            // Legacy agent events (still supported)
+            // =================================================================
 
             case "agent_start": {
                 // Create a new agent task
@@ -297,6 +512,33 @@ export function useAgentStream(): UseAgentStreamReturn {
                 break;
             }
 
+            case "clarification_needed": {
+                // Handle clarification request from agent - show as assistant message bubble
+                const agentName = data.agent_name as string;
+                const context = data.context as Record<string, unknown>;
+                const message = data.message as string;
+
+                // Store context for follow-up
+                pendingClarificationRef.current = {
+                    agent_name: agentName,
+                    context: context,
+                    original_request: currentTaskRef.current?.id || '',
+                };
+
+                // Use the message directly - it already contains the questions from the LLM
+                // Don't append questions array as that causes duplication
+                setFeedItems(prev => [...prev, {
+                    type: 'assistant',
+                    data: {
+                        id: generateId(),
+                        agentName: agentName,
+                        content: message,
+                        timestamp: event.timestamp,
+                    }
+                }]);
+                break;
+            }
+
             default:
                 console.log("Unknown event type:", event_type, data);
         }
@@ -319,15 +561,25 @@ export function useAgentStream(): UseAgentStreamReturn {
         setFeedItems(prev => [...prev, { type: 'user', data: userMsg }]);
 
         try {
+            // Build request body with optional clarification context
+            const requestBody: Record<string, unknown> = {
+                message: userMessage,
+                request_id: `req-${Date.now()}`,
+            };
+
+            // Include clarification context if we're responding to a clarification request
+            if (pendingClarificationRef.current) {
+                requestBody.clarification_context = pendingClarificationRef.current;
+                // Clear after sending
+                pendingClarificationRef.current = null;
+            }
+
             const response = await fetch(ENDPOINTS.chatStream, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({
-                    message: userMessage,
-                    request_id: `req-${Date.now()}`,
-                }),
+                body: JSON.stringify(requestBody),
             });
 
             if (!response.ok) {
@@ -397,6 +649,7 @@ export function useAgentStream(): UseAgentStreamReturn {
         setFeedItems([]);
         setError(null);
         currentTaskRef.current = null;
+        currentTaskPlanRef.current = null;
         stepCounterRef.current = 0;
     }, []);
 
@@ -427,8 +680,8 @@ function detectToolsFromMessage(message: string): string[] {
     const detectedTools: string[] = [];
 
     // Slack detection
-    if (lowerMessage.includes('slack') || 
-        lowerMessage.includes('channel') || 
+    if (lowerMessage.includes('slack') ||
+        lowerMessage.includes('channel') ||
         lowerMessage.includes('sent a message') ||
         lowerMessage.includes('message to') ||
         lowerMessage.includes('reminder')) {
@@ -436,7 +689,7 @@ function detectToolsFromMessage(message: string): string[] {
     }
 
     // Google Sheets detection
-    if (lowerMessage.includes('spreadsheet') || 
+    if (lowerMessage.includes('spreadsheet') ||
         lowerMessage.includes('google sheets') ||
         lowerMessage.includes('logged') ||
         lowerMessage.includes('partnership')) {
@@ -444,19 +697,19 @@ function detectToolsFromMessage(message: string): string[] {
     }
 
     // Google Docs detection
-    if (lowerMessage.includes('google doc') || 
+    if (lowerMessage.includes('google doc') ||
         lowerMessage.includes('document created')) {
         detectedTools.push('create_google_doc');
     }
 
     // Notion detection
-    if (lowerMessage.includes('notion') || 
+    if (lowerMessage.includes('notion') ||
         lowerMessage.includes('timeline')) {
         detectedTools.push('notion');
     }
 
     // GitHub detection
-    if (lowerMessage.includes('github') || 
+    if (lowerMessage.includes('github') ||
         lowerMessage.includes('repository') ||
         lowerMessage.includes('pull request') ||
         lowerMessage.includes('issue')) {
@@ -464,7 +717,7 @@ function detectToolsFromMessage(message: string): string[] {
     }
 
     // Calendly detection
-    if (lowerMessage.includes('calendly') || 
+    if (lowerMessage.includes('calendly') ||
         lowerMessage.includes('scheduled') ||
         lowerMessage.includes('availability') ||
         lowerMessage.includes('calendar')) {

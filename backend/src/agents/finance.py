@@ -42,6 +42,7 @@ class FinanceAgent(BaseAgent):
             draft_mou,
             generate_invoice,
             get_sponsorship_financials,
+            generate_mou_invoice,
         )
 
         self.tools = [
@@ -50,6 +51,7 @@ class FinanceAgent(BaseAgent):
             draft_mou,
             generate_invoice,
             get_sponsorship_financials,
+            generate_mou_invoice,
         ]
 
     async def execute(self, prompt: str, context: dict[str, Any]) -> AgentResult:
@@ -110,6 +112,8 @@ class FinanceAgent(BaseAgent):
             else:
                 response_text = response.content
 
+            # Clarification is now handled at the orchestration layer
+            # Agent just executes with the data it receives
             return self._create_success_result(
                 message=response_text,
                 tool_calls=tool_calls,

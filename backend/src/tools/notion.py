@@ -1,59 +1,64 @@
 """
 Notion tools for Nexus.
 
-Provides timeline database access and updates via MCP.
+Provides timeline database access, search, and updates via MCP.
+Supports organization-specific configuration loaded from MongoDB.
 """
+
+import logging
+from typing import Optional
 
 from langchain_core.tools import tool
 
 from src.services.mcp_client import mcp_client
+from src.services.organization import org_service, DEFAULT_ORG_ID
+
+logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# NOTION CONFIGURATION
-# =============================================================================
-# TODO: Move to MongoDB user_settings collection for per-user customization
-# Schema: { user_id: str, notion_timeline_database_id: str, ... }
-# Query: db.user_settings.find_one({"user_id": current_user.id})
-# =============================================================================
-TIMELINE_DATABASE_ID = "2ecf9472a05380b89d83e48dfb05bfe9?v=2ecf9472a05380429abe000c27eddba3"  # Paste your Notion timeline database ID here
-
-
-def get_timeline_database_id() -> str:
-    """Get the Notion timeline database ID.
+async def get_timeline_database_id(org_id: str = DEFAULT_ORG_ID) -> str:
+    """Get the Notion timeline database ID from org config.
     
-    Currently returns a hardcoded value. 
-    
-    TODO: Replace with MongoDB lookup from user_settings collection:
-        user_settings = await db.user_settings.find_one({"user_id": user_id})
-        return user_settings.get("notion_timeline_database_id", "")
-    
+    Args:
+        org_id: Organization identifier
+        
     Returns:
         Notion database ID string
     """
-    # Clean up ID if user pasted full URL query string
-    if "?" in TIMELINE_DATABASE_ID:
-        return TIMELINE_DATABASE_ID.split("?")[0]
+    try:
+        org_config = await org_service.get_config(org_id)
+        db_id = org_config.data_sources.marketing_timeline
         
-    return TIMELINE_DATABASE_ID
+        # Clean up ID if it contains query string
+        if db_id and "?" in db_id:
+            return db_id.split("?")[0]
+        
+        return db_id or ""
+    except Exception as e:
+        logger.error(f"Error getting timeline database ID: {e}")
+        return ""
 
 
 @tool
-async def get_timeline(status_filter: str = "") -> str:
+async def get_timeline(
+    status_filter: str = "",
+    org_id: str = DEFAULT_ORG_ID,
+) -> str:
     """Get timeline items from the Notion database.
     
     Args:
         status_filter: Optional status to filter by (e.g., 'In Progress', 'Done')
+        org_id: Organization identifier
         
     Returns:
         Formatted list of timeline items
     """
-    db_id = get_timeline_database_id()
+    db_id = await get_timeline_database_id(org_id)
     if not db_id:
-        return "Error: Notion timeline database ID not configured. Set TIMELINE_DATABASE_ID in notion.py"
+        return "Error: Notion timeline database ID not configured in organization settings."
     
     try:
-        args = {"limit": 20}
+        args = {"database_id": db_id, "limit": 20}
         if status_filter:
             args["filter_status"] = status_filter
         
@@ -88,10 +93,139 @@ async def get_timeline(status_filter: str = "") -> str:
 
 
 @tool
+async def search_notion(
+    query: str,
+    database_type: str = "timeline",
+    org_id: str = DEFAULT_ORG_ID,
+) -> str:
+    """Search Notion databases for specific content.
+    
+    Use this to answer questions like "When will we be filming the teaser video?"
+    by searching the marketing timeline or other Notion databases.
+    
+    Args:
+        query: Search query (what you're looking for)
+        database_type: Type of database to search ("timeline", "tasks", or a database ID)
+        org_id: Organization identifier
+        
+    Returns:
+        Search results
+    """
+    try:
+        # Get the appropriate database ID
+        org_config = await org_service.get_config(org_id)
+        
+        if database_type == "timeline":
+            db_id = org_config.data_sources.marketing_timeline
+        elif database_type == "tasks":
+            db_id = org_config.data_sources.tasks_database
+        else:
+            # Assume it's a direct database ID
+            db_id = database_type
+        
+        if not db_id:
+            return f"Error: Notion {database_type} database not configured in organization settings."
+        
+        # Clean up database ID
+        if "?" in db_id:
+            db_id = db_id.split("?")[0]
+        
+        # Call MCP tool to search
+        result = await mcp_client.call_notion_tool("search_database", {
+            "database_id": db_id,
+            "query": query,
+            "limit": 10,
+        })
+        
+        if isinstance(result, dict):
+            if result.get("error"):
+                # Fall back to querying all items and filtering locally
+                return await _fallback_search(db_id, query)
+            
+            items = result.get("items", [])
+            count = result.get("count", 0)
+            
+            if count == 0:
+                return f"No results found for '{query}' in {database_type}."
+            
+            return _format_search_results(items, query, database_type)
+        
+        return str(result)
+        
+    except Exception as e:
+        logger.error(f"Notion search error: {e}")
+        return f"Error searching Notion: {str(e)}"
+
+
+async def _fallback_search(db_id: str, query: str) -> str:
+    """Fallback search by querying all items and filtering locally.
+    
+    Used when the MCP server doesn't support direct search.
+    """
+    try:
+        result = await mcp_client.call_notion_tool("query_timeline", {
+            "database_id": db_id,
+            "limit": 100,
+        })
+        
+        if isinstance(result, dict) and result.get("items"):
+            items = result["items"]
+            query_lower = query.lower()
+            
+            # Filter items that match the query
+            matches = []
+            for item in items:
+                # Check all text fields
+                for key, value in item.items():
+                    if isinstance(value, str) and query_lower in value.lower():
+                        matches.append(item)
+                        break
+            
+            if not matches:
+                return f"No results found for '{query}'."
+            
+            return _format_search_results(matches, query, "database")
+        
+        return f"No results found for '{query}'."
+        
+    except Exception as e:
+        return f"Search error: {str(e)}"
+
+
+def _format_search_results(items: list, query: str, database_type: str) -> str:
+    """Format search results for display."""
+    lines = [f"Found {len(items)} results for '{query}' in {database_type}:\n"]
+    
+    for item in items:
+        name = item.get("Name") or item.get("Title") or "Untitled"
+        status = item.get("Status", "")
+        date = item.get("Date", "")
+        
+        line = f"• **{name}**"
+        if status:
+            line += f" [{status}]"
+        if date:
+            line += f" - {date}"
+        
+        # Add any additional context
+        for key in ["Description", "Notes", "Details"]:
+            if key in item and item[key]:
+                # Truncate long text
+                text = str(item[key])[:100]
+                if len(str(item[key])) > 100:
+                    text += "..."
+                line += f"\n  {text}"
+        
+        lines.append(line)
+    
+    return "\n".join(lines)
+
+
+@tool
 async def update_timeline_item(
     page_id: str,
     status: str = "",
-    date: str = ""
+    date: str = "",
 ) -> str:
     """Update a timeline item's status or date.
     
@@ -134,7 +268,8 @@ async def update_timeline_item(
 async def create_timeline_item(
     title: str,
     status: str = "",
-    date: str = ""
+    date: str = "",
+    org_id: str = DEFAULT_ORG_ID,
 ) -> str:
     """Create a new timeline item.
     
@@ -142,16 +277,17 @@ async def create_timeline_item(
         title: Item title
         status: Initial status (e.g., 'Not Started', 'In Progress')
         date: Date in YYYY-MM-DD format
+        org_id: Organization identifier
         
     Returns:
         Confirmation with page URL or error
     """
-    db_id = get_timeline_database_id()
+    db_id = await get_timeline_database_id(org_id)
     if not db_id:
-        return "Error: Notion timeline database ID not configured. Set TIMELINE_DATABASE_ID in notion.py"
+        return "Error: Notion timeline database ID not configured in organization settings."
     
     try:
-        args = {"title": title}
+        args = {"database_id": db_id, "title": title}
         if status:
             args["status"] = status
         if date:
@@ -170,9 +306,30 @@ async def create_timeline_item(
         return f"Failed to create timeline item: {str(e)}"
 
 
+@tool
+async def find_timeline_item(
+    search_query: str,
+    org_id: str = DEFAULT_ORG_ID,
+) -> str:
+    """Find a specific timeline item by name or description.
+    
+    Use this to answer questions like "When will we be filming the teaser video?"
+    
+    Args:
+        search_query: What to search for (e.g., "teaser video", "sponsor deadline")
+        org_id: Organization identifier
+        
+    Returns:
+        Matching timeline items with dates and status
+    """
+    return await search_notion(query=search_query, database_type="timeline", org_id=org_id)
+
+
 # Export all tools for agent binding
 NOTION_TOOLS = [
     get_timeline,
+    search_notion,
+    find_timeline_item,
     update_timeline_item,
     create_timeline_item,
 ]

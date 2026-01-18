@@ -128,6 +128,15 @@ class CheckBudgetStatusInput(BaseModel):
     event_name: str = Field(..., description="Name of the event")
 
 
+class GenerateMOUInvoiceInput(BaseModel):
+    """Input for generating MOU and invoice document from template."""
+    sponsor_company_name: str = Field(..., description="Company name of the sponsor")
+    event_name: Optional[str] = Field(None, description="Event name (uses org default if not provided)")
+    attendance_role: Optional[str] = Field(
+        None, description="Attendance role (e.g., 'booth', 'mentor', 'networking delegate')"
+    )
+
+
 # =============================================================================
 # Events Tools Schemas
 # =============================================================================
@@ -208,6 +217,7 @@ class AssignIssueInput(BaseModel):
 HITL_REQUIRED_ACTIONS = {
     "draft_mou",
     "generate_invoice",
+    "generate_mou_invoice",
     "schedule_instagram_post",
     "schedule_linkedin_post",
     "announce_to_slack",
