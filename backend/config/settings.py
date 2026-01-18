@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     github_token: str = ""
     figma_access_token: str = ""
     calendly_api_key: str = ""
+    notion_token: str = ""
 
     # Server
     host: str = "0.0.0.0"
