@@ -1,87 +1,215 @@
-"use client";
+'use client';
 
-import { cn } from "@/lib/utils";
+import React, { useState, useCallback } from 'react';
+import { AgentFeed } from '../agents/AgentFeed';
+import { useAgentStream, AgentUpdate } from '../../hooks/useAgentStream';
 
+/**
+ * Props for the ChatPanel component
+ */
 interface ChatPanelProps {
+    /** Whether the chat panel is currently open */
     isOpen: boolean;
+    /** Callback to close the chat panel */
     onClose: () => void;
+    /** Current event ID for filtering agent updates */
     eventId: string;
 }
 
+// API base URL - will be replaced with config value once Next.js is set up
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 /**
- * Chat panel skeleton - to be implemented by Frontend Dev 2.
- * Fixed 25% width when open, with input box at bottom.
+ * Chat panel component with input box and agent feed
+ * 
+ * Features:
+ * - Fixed 25% width when open
+ * - Collapsible with smooth animation
+ * - Input box at bottom
+ * - Cursor-style agent feed above input
+ * - SSE connection for real-time updates
+ * 
+ * @example
+ * ```tsx
+ * <ChatPanel
+ *   isOpen={isChatOpen}
+ *   onClose={() => setIsChatOpen(false)}
+ *   eventId={selectedEventId}
+ * />
+ * ```
  */
-export function ChatPanel({ isOpen, onClose, eventId }: ChatPanelProps): React.ReactElement {
+export function ChatPanel({ isOpen, onClose, eventId }: ChatPanelProps): React.ReactElement | null {
+    const [message, setMessage] = useState('');
+    const [updates, setUpdates] = useState<AgentUpdate[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    // Subscribe to agent updates via SSE
+    const handleAgentUpdate = useCallback((update: AgentUpdate) => {
+        setUpdates((prev) => [...prev, update]);
+    }, []);
+
+    useAgentStream(handleAgentUpdate, {
+        enabled: isOpen,
+        eventId,
+    });
+
+    /**
+     * Send message to backend
+     */
+    const handleSend = async (): Promise<void> => {
+        if (!message.trim() || isLoading) {
+            return;
+        }
+
+        const currentMessage = message;
+        setMessage('');
+        setIsLoading(true);
+
+        try {
+            const response = await fetch(`${API_BASE}/api/chat`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: currentMessage,
+                    event_id: eventId,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to send message: ${response.statusText}`);
+            }
+
+            // Response will come through SSE stream
+            console.log('[ChatPanel] Message sent successfully');
+        } catch (error) {
+            console.error('[ChatPanel] Failed to send message:', error);
+            // Add error to feed
+            setUpdates((prev) => [
+                ...prev,
+                {
+                    agentName: 'System',
+                    status: 'error',
+                    message: 'Failed to send message. Please try again.',
+                    timestamp: new Date().toISOString(),
+                },
+            ]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    /**
+     * Handle keyboard events for input
+     */
+    const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            handleSend();
+        }
+    };
+
+    // Don't render if closed
+    if (!isOpen) {
+        return null;
+    }
+
     return (
-        <aside
-            className={cn(
-                "w-1/4 min-w-[300px] max-w-[400px] h-screen",
-                "bg-slate-800 text-secondary",
-                "flex flex-col",
-                "border-l border-slate-700",
-                "transition-transform duration-300",
-                isOpen ? "translate-x-0" : "-translate-x-full"
-            )}
+        <div
+            className="w-1/4 min-w-[300px] h-full flex flex-col bg-gray-50 border-r border-gray-200"
             role="complementary"
             aria-label="Chat panel"
         >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-slate-700">
-                <h2 className="text-lg font-semibold text-white">Chat</h2>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+                <h2 className="text-lg font-semibold text-gray-900">Nexus Chat</h2>
                 <button
                     onClick={onClose}
-                    className="p-1 rounded hover:bg-slate-700 transition-colors"
+                    className="p-1 rounded-md hover:bg-gray-100 transition-colors"
                     aria-label="Close chat panel"
                 >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <svg
+                        className="w-5 h-5 text-gray-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                    >
+                        <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M6 18L18 6M6 6l12 12"
+                        />
                     </svg>
                 </button>
             </div>
 
-            {/* Agent Feed Area - Skeleton placeholder */}
-            <div className="flex-1 overflow-auto p-4">
-                <div className="text-center text-slate-400 py-8">
-                    <p className="text-sm">Agent feed will appear here</p>
-                    <p className="text-xs mt-2 text-slate-500">
-                        (To be implemented by Frontend Dev 2)
-                    </p>
-                    {eventId && (
-                        <p className="text-xs mt-2 text-slate-500">
-                            Event ID: {eventId}
-                        </p>
-                    )}
-                </div>
-            </div>
+            {/* Agent Feed */}
+            <AgentFeed updates={updates} />
 
-            {/* Input Box - Skeleton placeholder */}
-            <div className="p-4 border-t border-slate-700">
-                <div className="flex gap-2">
+            {/* Input Area */}
+            <div className="p-4 border-t border-gray-200 bg-white">
+                <div className="flex items-center space-x-2">
                     <input
                         type="text"
-                        placeholder="Type a message..."
-                        className={cn(
-                            "flex-1 px-4 py-2 rounded-lg",
-                            "bg-slate-700 text-white placeholder-slate-400",
-                            "border border-slate-600",
-                            "focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
-                        )}
-                        disabled
+                        value={message}
+                        onChange={(e) => setMessage(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Ask anything about your events..."
+                        disabled={isLoading}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                        aria-label="Chat message input"
                     />
                     <button
-                        className={cn(
-                            "px-4 py-2 rounded-lg",
-                            "bg-accent text-white",
-                            "hover:bg-blue-600 transition-colors",
-                            "disabled:opacity-50 disabled:cursor-not-allowed"
-                        )}
-                        disabled
+                        onClick={handleSend}
+                        disabled={isLoading || !message.trim()}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        aria-label="Send message"
                     >
-                        Send
+                        {isLoading ? (
+                            <svg
+                                className="w-5 h-5 animate-spin"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                            >
+                                <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                />
+                                <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                />
+                            </svg>
+                        ) : (
+                            <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+                                />
+                            </svg>
+                        )}
                     </button>
                 </div>
             </div>
-        </aside>
+        </div>
     );
 }
+
+export default ChatPanel;
