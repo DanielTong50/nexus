@@ -18,6 +18,9 @@ dependencies = [
     "httpx>=0.28.0",
     "sse-starlette>=2.1.0",
     "python-dotenv>=1.0.0",
+    "mcp>=1.0.0",
+    "google-api-python-client>=2.0.0",
+    "google-auth>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -31,8 +34,6 @@ dev = [
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
-    "ruff>=0.8.0",
-]
 
 [build-system]
 requires = ["hatchling"]
@@ -45,6 +46,5 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
+[tool.hatch.build.targets.wheel]
+packages = ["src", "config"]
