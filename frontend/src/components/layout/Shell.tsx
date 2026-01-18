@@ -4,8 +4,8 @@ import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import {
-    PanelRightClose,
     PanelRight,
+    Sparkles,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -52,24 +52,17 @@ export default function Shell() {
                         <span className="text-slate-900 font-medium capitalize">{activeView}</span>
                     </nav>
 
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsAgentPanelOpen(!isAgentPanelOpen)}
-                        className="text-slate-500 hover:text-slate-900 gap-2"
-                    >
-                        {isAgentPanelOpen ? (
-                            <>
-                                <PanelRightClose className="h-4 w-4" />
-                                <span className="text-xs">Hide Agent</span>
-                            </>
-                        ) : (
-                            <>
-                                <PanelRight className="h-4 w-4" />
-                                <span className="text-xs">Show Agent</span>
-                            </>
-                        )}
-                    </Button>
+                    {!isAgentPanelOpen && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsAgentPanelOpen(true)}
+                            className="text-slate-500 hover:text-slate-900 gap-2"
+                        >
+                            
+                            <span className="text-xs">Open Agent</span>
+                        </Button>
+                    )}
                 </header>
 
                 {/* Content */}
@@ -91,7 +84,7 @@ export default function Shell() {
                         className="h-full bg-white border-l border-slate-200 flex-shrink-0 overflow-hidden"
                     >
                         <div className="w-[380px] h-full">
-                            <ChatPanel />
+                            <ChatPanel onClose={() => setIsAgentPanelOpen(false)} />
                         </div>
                     </motion.aside>
                 )}
