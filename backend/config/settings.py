@@ -43,6 +43,24 @@ class Settings(BaseSettings):
     github_token: str = ""
     figma_access_token: str = ""
     calendly_api_key: str = ""
+    notion_token: str = ""
+
+    # OAuth Credentials (for user-based OAuth flows)
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+    slack_oauth_client_id: str = ""
+    slack_oauth_client_secret: str = ""
+    notion_oauth_client_id: str = ""
+    notion_oauth_client_secret: str = ""
+    github_oauth_client_id: str = ""
+    github_oauth_client_secret: str = ""
+    calendly_oauth_client_id: str = ""
+    calendly_oauth_client_secret: str = ""
+    
+    # OAuth Security
+    oauth_redirect_base_url: str = "http://localhost:8000"
+    token_encryption_key: str = ""  # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    oauth_state_secret: str = ""  # Auto-generated if not set
 
     # Server
     host: str = "0.0.0.0"
