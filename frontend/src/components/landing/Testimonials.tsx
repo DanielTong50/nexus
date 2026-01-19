@@ -7,31 +7,31 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const TESTIMONIALS = [
     {
-        quote: "Nexus completely transformed how we run Blueprint. What used to take our team weeks now happens in days. The AI agents handle the grunt work so we can focus on making the event amazing.",
-        name: "Sarah Chen",
-        role: "President, Blueprint",
-        org: "MIT",
-        initials: "SC",
+        quote: "BizTech doesn’t plan events; we plan ‘experiences.’ Nexus has completely transformed how we organize experiences at BizTech. From an event planner’s perspective, it’s like having a superpower.",
+        name: "Pauline Ongchan",
+        role: "Experiences Lead",
+        org: "UBC BizTech",
+        initials: "PO",
     },
     {
-        quote: "We raised 40% more in sponsorships this year thanks to Nexus. The Partnerships Agent drafts better outreach emails than I ever could, and the follow-up tracking is incredibly helpful.",
-        name: "Marcus Johnson",
-        role: "VP Partnerships",
-        org: "HackGT",
-        initials: "MJ",
+        quote: "The Partnerships Agent drafts better outreach emails than I ever could, and the follow-up tracking is incredibly helpful. I look forward to increasing 40% in outreaching efficiency this year thanks to Nexus.",
+        name: "John Grey",
+        role: "Partnerships Lead",
+        org: "UBC BizTech",
+        initials: "JG",
     },
     {
-        quote: "As a small club, we don't have dedicated marketing people. Nexus's Marketing Agent creates our entire social media calendar and even suggests content ideas. It's like having a free marketing team.",
-        name: "Emily Rodriguez",
-        role: "Club President",
-        org: "Stanford CS Club",
-        initials: "ER",
+        quote: "It is incredibly difficult and complex to plan events like nwHacks. Tools like Nexus gives us the ability to plan events with more capacity and thus elevating the experience for our hackathon attendees.",
+        name: "Angela Cheng",
+        role: "Hackathon Logs Coordinator",
+        org: "nwHacks",
+        initials: "AC",
     },
 ];
 
 export function Testimonials() {
     return (
-        <section className="py-24">
+        <section className="py-24 scroll-mt-16" id="testimonials">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 {/* Header */}
                 <motion.div
