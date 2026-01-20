@@ -1,68 +1,161 @@
 """
 Authentication and user identity service.
 
-Provides user identity for the application. In the hackathon MVP,
-this uses a simple mock implementation. Production would integrate
-with OAuth/JWT.
+Provides user identity for the application using Clerk JWT verification.
 """
 
+import httpx
+import jwt
 from typing import Optional
+from functools import lru_cache
 
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
+
+from config.settings import settings
+
+# HTTP Bearer token extractor
+security = HTTPBearer(auto_error=False)
 
 
 class User(BaseModel):
-    """User identity model."""
-    id: str = Field(..., description="Unique user identifier")
-    name: str = Field(..., description="User's display name")
-    email: str = Field(..., description="User's email address")
-    role: str = Field(..., description="User's role in the organization")
-    team: Optional[str] = Field(None, description="User's team (e.g., 'partnerships', 'marketing')")
+    """User identity model from Clerk JWT."""
+    id: str = Field(..., description="Clerk user ID")
+    email: Optional[str] = Field(None, description="User's email address")
+    name: Optional[str] = Field(None, description="User's display name")
+    role: str = Field(default="user", description="User's role in the organization")
+    team: Optional[str] = Field(None, description="User's team")
 
 
-# Mock user for development
-_MOCK_USER = User(
-    id="dev-user-001",
-    name="Dev User",
-    email="dev@nexus.local",
-    role="admin",
-    team="core"
-)
+# Cache for Clerk's JWKS (JSON Web Key Set)
+_jwks_cache: Optional[dict] = None
 
 
-async def get_current_user(token: Optional[str] = None) -> User:
-    """
-    Get the current authenticated user.
+async def _get_clerk_jwks() -> dict:
+    """Fetch Clerk's JWKS for JWT verification."""
+    global _jwks_cache
+    if _jwks_cache is not None:
+        return _jwks_cache
     
-    In the hackathon MVP, this returns a mock user. In production,
-    this would validate the JWT/session token and return the real user.
+    async with httpx.AsyncClient() as client:
+        # Use configured Clerk frontend API URL
+        response = await client.get(f"{settings.clerk_frontend_api}/.well-known/jwks.json")
+        response.raise_for_status()
+        _jwks_cache = response.json()
+        return _jwks_cache
+
+
+def _get_signing_key(token: str, jwks: dict) -> str:
+    """Get the signing key from JWKS that matches the token's kid."""
+    try:
+        unverified_header = jwt.get_unverified_header(token)
+        kid = unverified_header.get("kid")
+        
+        for key in jwks.get("keys", []):
+            if key.get("kid") == kid:
+                # Convert JWK to PEM format for PyJWT
+                from jwt import algorithms
+                return algorithms.RSAAlgorithm.from_jwk(key)
+        
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unable to find appropriate signing key",
+        )
+    except jwt.exceptions.DecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token format",
+        )
+
+
+async def verify_clerk_token(token: str) -> dict:
+    """Verify a Clerk JWT token and return its claims."""
+    try:
+        jwks = await _get_clerk_jwks()
+        signing_key = _get_signing_key(token, jwks)
+        
+        # Decode and verify the token
+        payload = jwt.decode(
+            token,
+            signing_key,
+            algorithms=["RS256"],
+            options={"verify_aud": False},  # Clerk doesn't always include aud
+        )
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired",
+        )
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid token: {str(e)}",
+        )
+
+
+async def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> User:
+    """
+    Get the current authenticated user from the Clerk JWT token.
     
     Args:
-        token: Optional auth token (unused in mock implementation)
+        credentials: Bearer token from Authorization header
         
     Returns:
         User model with identity information
-    """
-    # TODO: Implement real auth in production
-    # - Validate JWT token
-    # - Fetch user from database
-    # - Check permissions
-    return _MOCK_USER
-
-
-async def get_user_by_id(user_id: str) -> Optional[User]:
-    """
-    Get a user by their ID.
-    
-    Args:
-        user_id: The user's unique identifier
         
-    Returns:
-        User model if found, None otherwise
+    Raises:
+        HTTPException: If no valid token is provided
     """
-    # Mock implementation - only knows about the dev user
-    if user_id == _MOCK_USER.id:
-        return _MOCK_USER
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    token = credentials.credentials
+    claims = await verify_clerk_token(token)
+    
+    # Extract user info from Clerk JWT claims
+    user_id = claims.get("sub", "")
+    
+    # Clerk stores email and name in different places depending on the token type
+    # Session tokens have user info directly, while others may have it nested
+    email = claims.get("email") or claims.get("user", {}).get("email")
+    name = claims.get("name") or claims.get("user", {}).get("name") or claims.get("first_name", "")
+    
+    return User(
+        id=user_id,
+        email=email,
+        name=name,
+        role="admin",  # Default role for now
+        team="core",
+    )
+
+
+async def get_optional_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
+) -> Optional[User]:
+    """
+    Get the current user if authenticated, otherwise return None.
+    Use this for endpoints that work both with and without auth.
+    """
+    if credentials is None:
+        return None
+    
+    try:
+        return await get_current_user(credentials)
+    except HTTPException:
+        return None
+
+
+# Legacy functions for backward compatibility
+async def get_user_by_id(user_id: str) -> Optional[User]:
+    """Get a user by their ID (placeholder for future implementation)."""
     return None
 
 

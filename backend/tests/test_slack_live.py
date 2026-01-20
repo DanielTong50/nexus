@@ -1,65 +1,88 @@
-"""Live test for Slack MCP integration.
-
-Run with: uv run python tests/test_slack_live.py
-
-Make sure to set these environment variables in .env:
-- SLACK_BOT_TOKEN=xoxb-your-token
-- SLACK_ALLOWED_CHANNELS=#test-channel (optional)
-"""
 
 import asyncio
+import os
 import sys
-from pathlib import Path
+from dotenv import load_dotenv
 
-# Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Load env vars first
+load_dotenv()
 
-from src.services.mcp_client import mcp_client
+from slack_sdk import WebClient
+from slack_sdk.errors import SlackApiError
 
+try:
+    import mcp
+    print(f"✅ 'mcp' module found: {mcp.__file__}")
+except ImportError:
+    print("❌ 'mcp' module NOT found!")
+except Exception as e:
+    print(f"❌ Error importing mcp: {e}")
 
-async def test_list_channels():
-    """Test listing Slack channels."""
-    print("\n=== Testing list_channels ===")
+def get_slack_client():
+    token = os.environ.get("SLACK_BOT_TOKEN")
+    if not token:
+        print("❌ SLACK_BOT_TOKEN not found in environment")
+        return None
+    return WebClient(token=token)
+
+async def test_slack_connection():
     try:
-        result = await mcp_client.call_slack_tool("list_channels", {})
-        print(f"Result: {result}")
-        return True
+        print("Initializing Slack client...")
+        client = get_slack_client()
+        if not client:
+            return
+        
+        # 1. Test Auth
+        print("\n1. Testing Auth...")
+        try:
+            auth_test = client.auth_test()
+            print(f"✅ Authenticated as: {auth_test['user']} (Team: {auth_test['team']})")
+        except SlackApiError as e:
+            print(f"❌ Auth failed: {e.response['error']}")
+            return
+        
+        # 2. List Channels
+        print("\n2. Listing Channels (public & private)...")
+        try:
+            response = client.conversations_list(types="public_channel,private_channel")
+            channels = response["channels"]
+            print(f"Found {len(channels)} channels.")
+            
+            partnerships_found = False
+            for ch in channels:
+                name = ch['name']
+                is_member = ch['is_member']
+                print(f" - #{name} (ID: {ch['id']}) [Member: {is_member}]")
+                
+                if name == "partnerships":
+                    partnerships_found = True
+                    if not is_member:
+                        print(f"❌ WARNING: Bot is NOT a member of #partnerships!")
+                    else:
+                        print(f"✅ Bot is a member of #partnerships.")
+            
+            if not partnerships_found:
+                 print(f"❌ WARNING: #partnerships channel NOT found in list!")
+                 
+        except SlackApiError as e:
+            print(f"❌ Failed to list channels: {e.response['error']}")
+            if e.response['error'] == 'missing_scope':
+                print("   -> Missing scope! Need 'channels:read', 'groups:read', or 'mpim:read'")
+
+        # 3. Test Message Post to #partnerships
+        print("\n3. Attempting to post to #partnerships...")
+        try:
+            client.chat_postMessage(channel="#partnerships", text="Test message from Nexus debugging script.")
+            print("✅ Successfully posted to #partnerships")
+        except SlackApiError as e:
+            print(f"❌ Failed to post: {e.response['error']}")
+            if e.response['error'] == 'channel_not_found':
+                 print("   -> Channel not found! Bot might not be in the channel or it's private.")
+            elif e.response['error'] == 'not_in_channel':
+                 print("   -> Bot is not in the channel! Invite it with /invite @botname")
+
     except Exception as e:
-        print(f"Error: {e}")
-        return False
-
-
-async def test_post_message(channel: str, message: str):
-    """Test posting a message to Slack."""
-    print(f"\n=== Testing post_message to {channel} ===")
-    try:
-        result = await mcp_client.call_slack_tool(
-            "post_message",
-            {"channel": channel, "text": message}
-        )
-        print(f"Result: {result}")
-        return result.get("success", False) if isinstance(result, dict) else False
-    except Exception as e:
-        print(f"Error: {e}")
-        return False
-
-
-async def main():
-    print("Slack MCP Integration Test")
-    print("=" * 40)
-    
-    # Test list channels
-    await test_list_channels()
-    
-    # Test post message - modify this channel to match your setup
-    test_channel = "#nexus-test-announcement"  # Change this to your test channel
-    test_message = "🤖 Hello from Nexus MCP! This is a test message."
-    
-    await test_post_message(test_channel, test_message)
-    
-    print("\n" + "=" * 40)
-    print("Tests complete!")
-
+        print(f"❌ Error: {str(e)}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(test_slack_connection())

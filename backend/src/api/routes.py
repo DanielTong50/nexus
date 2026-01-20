@@ -1,14 +1,14 @@
 """API route definitions for Nexus backend.
 
 Endpoints:
-- GET /health - Health check
-- POST /chat - Synchronous chat processing
-- POST /chat/stream - SSE streaming chat
-- GET /chat/stream - SSE streaming via GET (for EventSource)
-- POST /approve - Approve/reject pending actions
-- GET /approvals - List pending approvals
-- GET /agents - List available agents
-- GET /data/* - Data endpoints for frontend views
+- GET /health - Health check (public)
+- POST /chat - Synchronous chat processing (protected)
+- POST /chat/stream - SSE streaming chat (protected)
+- GET /chat/stream - SSE streaming via GET (protected)
+- POST /approve - Approve/reject pending actions (protected)
+- GET /approvals - List pending approvals (protected)
+- GET /agents - List available agents (protected)
+- GET /data/* - Data endpoints for frontend views (protected)
 """
 
 import logging
@@ -18,8 +18,7 @@ from typing import Optional
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi import APIRouter, HTTPException, Query, Depends
 
 from src.api.streaming import (
     create_event_stream,
@@ -41,6 +40,7 @@ from src.models.requests import (
     PendingApproval,
 )
 from src.models.state import GraphState
+from src.services.auth import get_current_user, User
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ router = APIRouter(tags=["chat"])
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def process_chat(request: ChatRequest) -> ChatResponse:
+async def process_chat(request: ChatRequest, user: User = Depends(get_current_user)) -> ChatResponse:
     """Process a chat request and return agent responses.
 
     This endpoint handles synchronous requests where the full response
@@ -141,7 +141,7 @@ async def process_chat(request: ChatRequest) -> ChatResponse:
 
 
 @router.post("/chat/stream")
-async def process_chat_stream(request: ChatRequest):
+async def process_chat_stream(request: ChatRequest, user: User = Depends(get_current_user)):
     """Process a chat request with Server-Sent Events streaming.
 
     This endpoint streams agent updates in real-time as they execute,
@@ -172,6 +172,7 @@ async def process_chat_stream_get(
     message: str = Query(..., description="User message to process"),
     request_id: Optional[str] = Query(None, description="Optional request ID"),
     event_name: Optional[str] = Query(None, description="Event context"),
+    user: User = Depends(get_current_user),
 ):
     """Process a chat request via GET for EventSource compatibility.
 
@@ -197,7 +198,7 @@ async def process_chat_stream_get(
 # Approval endpoints
 
 @router.post("/approve", response_model=ApprovalResponse)
-async def process_approval(request: ApprovalRequest) -> ApprovalResponse:
+async def process_approval(request: ApprovalRequest, user: User = Depends(get_current_user)) -> ApprovalResponse:
     """Approve, reject, or edit a pending action.
 
     This endpoint handles Human-in-the-Loop (HITL) approvals for
@@ -296,7 +297,7 @@ async def process_approval(request: ApprovalRequest) -> ApprovalResponse:
 
 
 @router.get("/approvals", response_model=ApprovalListResponse)
-async def list_approvals() -> ApprovalListResponse:
+async def list_approvals(user: User = Depends(get_current_user)) -> ApprovalListResponse:
     """List all pending approvals.
 
     Returns:
@@ -325,7 +326,7 @@ async def list_approvals() -> ApprovalListResponse:
 
 
 @router.get("/approvals/{approval_id}")
-async def get_approval(approval_id: str):
+async def get_approval(approval_id: str, user: User = Depends(get_current_user)):
     """Get details of a specific approval.
 
     Args:
@@ -344,7 +345,7 @@ async def get_approval(approval_id: str):
 
 
 @router.delete("/approvals/{approval_id}")
-async def cancel_approval(approval_id: str):
+async def cancel_approval(approval_id: str, user: User = Depends(get_current_user)):
     """Cancel/delete a pending approval.
 
     Args:
@@ -366,7 +367,7 @@ async def cancel_approval(approval_id: str):
 # Agent info endpoints
 
 @router.get("/agents")
-async def list_agents() -> dict:
+async def list_agents(user: User = Depends(get_current_user)) -> dict:
     """List available agents and their capabilities."""
     return {
         "agents": [
@@ -460,7 +461,7 @@ async def check_agents_health() -> dict:
 # Data endpoints for frontend views
 
 @router.get("/data/partnerships")
-async def get_partnerships_data() -> dict:
+async def get_partnerships_data(user: User = Depends(get_current_user)) -> dict:
     """Get partnerships data for the Partnerships view.
 
     Fetches from Google Sheets (via MCP) with MongoDB as cache/fallback.
@@ -533,7 +534,7 @@ async def get_partnerships_data() -> dict:
 
 
 @router.get("/data/finance")
-async def get_finance_data() -> dict:
+async def get_finance_data(user: User = Depends(get_current_user)) -> dict:
     """Get finance data for the Finance view.
 
     Pulls sponsorship data from Google Sheets/MongoDB to calculate totals.
@@ -613,7 +614,7 @@ async def get_finance_data() -> dict:
 
 
 @router.get("/data/events")
-async def get_events_data() -> dict:
+async def get_events_data(user: User = Depends(get_current_user)) -> dict:
     """Get events/logistics data for the Events view."""
     return {
         "event_name": "Blueprint",
@@ -648,7 +649,7 @@ async def get_events_data() -> dict:
 
 
 @router.get("/data/marketing")
-async def get_marketing_data() -> dict:
+async def get_marketing_data(user: User = Depends(get_current_user)) -> dict:
     """Get marketing data for the Marketing view."""
     return {
         "campaigns": [
@@ -685,7 +686,7 @@ async def get_marketing_data() -> dict:
 
 
 @router.get("/data/developers")
-async def get_developers_data() -> dict:
+async def get_developers_data(user: User = Depends(get_current_user)) -> dict:
     """Get developers data for the Developers view."""
     return {
         "repository": {
@@ -716,7 +717,7 @@ async def get_developers_data() -> dict:
 # History endpoints
 
 @router.get("/history/{request_id}")
-async def get_request_history(request_id: str) -> dict:
+async def get_request_history(request_id: str, user: User = Depends(get_current_user)) -> dict:
     """Get the full history of a specific request.
 
     Args:
@@ -744,6 +745,7 @@ async def get_request_history(request_id: str) -> dict:
 async def list_recent_requests(
     limit: int = Query(default=50, le=100, description="Maximum number of requests"),
     status: Optional[str] = Query(default=None, description="Filter by status"),
+    user: User = Depends(get_current_user),
 ) -> dict:
     """List recent requests.
 
@@ -772,7 +774,7 @@ GENERATED_FILES_DIR = Path(__file__).parent.parent / "tools" / "generated"
 
 
 @router.get("/files/{filename}")
-async def download_file(filename: str):
+async def download_file(filename: str, user: User = Depends(get_current_user)):
     """Download a generated file.
 
     Args:
@@ -812,7 +814,7 @@ async def download_file(filename: str):
 
 
 @router.get("/files")
-async def list_generated_files() -> dict:
+async def list_generated_files(user: User = Depends(get_current_user)) -> dict:
     """List all generated files available for download.
 
     Returns:

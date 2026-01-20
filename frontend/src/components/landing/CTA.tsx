@@ -37,9 +37,9 @@ export function CTA() {
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                        <Link href="/events">
+                        <Link href="/sign-up">
                             <Button size="lg" className="h-14 px-10 text-lg bg-white hover:bg-slate-200 text-black shadow-lg">
-                                Get Started Free
+                                Join the Waitlist
                                 <ArrowRight className="ml-2 h-5 w-5" />
                             </Button>
                         </Link>

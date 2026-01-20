@@ -57,9 +57,9 @@ export function Hero() {
                         transition={{ duration: 0.5, delay: 0.3 }}
                         className="mt-10 flex flex-col sm:flex-row items-center justify-start gap-4"
                     >
-                        <Link href="/dashboard">
+                        <Link href="/sign-up">
                             <Button size="lg" className="h-12 px-8 text-base bg-white hover:bg-slate-200 text-black shadow-lg">
-                                Try it Now!
+                                Join the Waitlist
                                 <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                         </Link>

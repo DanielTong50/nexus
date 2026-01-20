@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     calendly_api_key: str = Field(default="", alias="CALENDLY_API_KEY")
     notion_token: str = ""
 
+    # Clerk Authentication
+    clerk_secret_key: str = Field(default="", alias="CLERK_SECRET_KEY")
+    clerk_frontend_api: str = Field(
+        default="https://needed-pegasus-80.clerk.accounts.dev",
+        alias="CLERK_FRONTEND_API"
+    )
+
     # Server
     host: str = Field(default="0.0.0.0", alias="HOST")
     port: int = Field(default=8000, alias="PORT")

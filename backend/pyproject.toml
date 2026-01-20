@@ -2,7 +2,7 @@
 name = "nexus-backend"
 version = "0.1.0"
 description = "AI-Native Event Production Platform Backend"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -17,7 +17,12 @@ dependencies = [
     "redis>=5.2.0",
     "sse-starlette>=2.1.0",
     "python-multipart>=0.0.9",
-    "python-docx>=1.1.0"
+    "python-docx>=1.1.0",
+    "slack-sdk>=3.39.0",
+    "mcp>=1.25.0",
+    "google-api-python-client>=2.188.0",
+    "google-auth>=2.47.0",
+    "pyjwt[crypto]>=2.8.0",
 ]
 
 [build-system]

@@ -35,15 +35,15 @@ export function LandingNavbar() {
                             Nexus
                         </Link>
                         <nav className="hidden md:flex items-center gap-8">
-                        {NAV_LINKS.map((link) => (
-                            <a
-                                key={link.href}
-                                href={link.href}
-                                className="text-sm font-medium text-white hover:text-slate-300 transition-colors leading-none"
-                            >
-                                {link.label}
-                            </a>
-                        ))}
+                            {NAV_LINKS.map((link) => (
+                                <a
+                                    key={link.href}
+                                    href={link.href}
+                                    className="text-sm font-medium text-white hover:text-slate-300 transition-colors leading-none"
+                                >
+                                    {link.label}
+                                </a>
+                            ))}
                         </nav>
                     </div>
 
@@ -77,9 +77,9 @@ export function LandingNavbar() {
                             </a>
                         </div>
 
-                        <Link href="/dashboard">
+                        <Link href="/sign-up">
                             <Button className="bg-white hover:bg-slate-200 text-black font-semibold px-6 h-10 text-sm">
-                                Sign In
+                                Join Waitlist
                             </Button>
                         </Link>
                     </div>
@@ -136,9 +136,9 @@ export function LandingNavbar() {
                                     />
                                 </a>
                             </div>
-                            <Link href="/dashboard" className="block">
+                            <Link href="/sign-up" className="block">
                                 <Button className="w-full bg-white hover:bg-slate-200 text-black">
-                                    Sign In
+                                    Join Waitlist
                                 </Button>
                             </Link>
                         </div>
